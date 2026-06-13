@@ -124,6 +124,18 @@ struct SeedDetailView: View {
                         TextField("Supplier name", text: $seed.supplier)
                             .multilineTextAlignment(.trailing)
                     }
+                    LabeledContent("Website") {
+                        HStack(spacing: 6) {
+                            TextField("https://", text: $seed.url)
+                                .multilineTextAlignment(.trailing)
+                            if let url = URL(string: seed.url), !seed.url.isEmpty, url.scheme != nil {
+                                Link(destination: url) {
+                                    Image(systemName: "arrow.up.right.square")
+                                }
+                                .help("Open in browser")
+                            }
+                        }
+                    }
                     LabeledContent("Packets in stock") {
                         Stepper("\(seed.quantityPackets)", value: $seed.quantityPackets, in: 0...999)
                     }
@@ -499,37 +511,80 @@ struct AddSeedView: View {
     @State private var seed = Seed(name: "")
     @FocusState private var focusedField: Field?
 
-    enum Field { case name, variety, supplier }
+    enum Field { case name, variety, supplier, url }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Identity") {
-                    TextField("Plant name (required)", text: $seed.name)
-                        .focused($focusedField, equals: .name)
-                    TextField("Variety", text: $seed.variety)
-                        .focused($focusedField, equals: .variety)
-                    TextField("Supplier", text: $seed.supplier)
-                        .focused($focusedField, equals: .supplier)
-                }
-                Section("Sowing") {
-                    Text("Add sowing windows after saving, in the seed detail view.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Add Seed")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        onAdd(seed)
-                        dismiss()
+        VStack(spacing: 0) {
+            // Title bar
+            Text("Add Seed")
+                .font(.headline)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+            Divider()
+
+            // Fields
+            VStack(alignment: .leading, spacing: 14) {
+                Group {
+LabeledContent("Plant name") {
+                        TextField("Required", text: $seed.name)
+                            .focused($focusedField, equals: .name)
                     }
-                    .disabled(seed.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    LabeledContent("Variety") {
+                        TextField("Optional", text: $seed.variety)
+                            .focused($focusedField, equals: .variety)
+                    }
+                    LabeledContent("Supplier") {
+                        TextField("Optional", text: $seed.supplier)
+                            .focused($focusedField, equals: .supplier)
+                    }
+                    LabeledContent("Website") {
+                        HStack(spacing: 6) {
+                            TextField("https://", text: $seed.url)
+                                .focused($focusedField, equals: .url)
+                            Button {
+                                let query = [seed.name, seed.variety, seed.supplier]
+                                    .filter { !$0.isEmpty }
+                                    .joined(separator: " ")
+                                let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                if let url = URL(string: "https://www.google.com/search?q=\(encoded)+seeds") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                            }
+                            .help("Search Google for this seed")
+                            .disabled(seed.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                    }
                 }
+                Divider()
+                Text("Add sowing windows after saving, in the seed detail view.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            // Buttons
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Add") {
+                    onAdd(seed)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(seed.name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .frame(width: 400, height: 300)
+        .frame(width: 500, height: 310)
         .onAppear {
             // Sheet windows need explicit activation to accept keyboard input
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

@@ -15,6 +15,8 @@ struct Seed: Identifiable, Codable, Hashable {
     var daysToGermination: ClosedRange<Int>?
     var daysToHarvest: ClosedRange<Int>?
 
+    var url: String = ""
+
     var companions: [String] = []
     var antagonists: [String] = []
     var sunRequirement: SunRequirement = .fullSun
@@ -65,6 +67,7 @@ extension Seed {
         case spacingCm, rowSpacingCm, depthCm
         case daysToGerminationMin, daysToGerminationMax
         case daysToHarvestMin, daysToHarvestMax
+        case url
         case companions, antagonists, sunRequirement, notes, tags, colorHex
     }
 
@@ -113,6 +116,7 @@ extension Seed {
            let hi = try c.decodeIfPresent(Int.self, forKey: .daysToHarvestMax) {
             daysToHarvest = lo...hi
         }
+        url = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
         companions = try c.decodeIfPresent([String].self, forKey: .companions) ?? []
         antagonists = try c.decodeIfPresent([String].self, forKey: .antagonists) ?? []
         sunRequirement = try c.decodeIfPresent(SunRequirement.self, forKey: .sunRequirement) ?? .fullSun
@@ -135,6 +139,7 @@ extension Seed {
         try c.encodeIfPresent(daysToGermination?.upperBound, forKey: .daysToGerminationMax)
         try c.encodeIfPresent(daysToHarvest?.lowerBound, forKey: .daysToHarvestMin)
         try c.encodeIfPresent(daysToHarvest?.upperBound, forKey: .daysToHarvestMax)
+        try c.encode(url, forKey: .url)
         try c.encode(companions, forKey: .companions)
         try c.encode(antagonists, forKey: .antagonists)
         try c.encode(sunRequirement, forKey: .sunRequirement)
