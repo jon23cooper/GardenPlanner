@@ -213,21 +213,38 @@ struct SeedDetailView: View {
 
 struct ColorPickerField: View {
     @Binding var colorHex: String
+    @State private var showingPopover = false
     let palette = ["#4CAF50","#8BC34A","#FF9800","#F44336","#9C27B0","#2196F3","#FFEB3B","#795548","#607D8B","#E91E63"]
 
     var body: some View {
-        Menu {
-            ForEach(palette, id: \.self) { hex in
-                Button {
-                    colorHex = hex
-                } label: {
-                    Label(hex, systemImage: colorHex == hex ? "checkmark.circle.fill" : "circle.fill")
-                }
-            }
-        } label: {
+        Button { showingPopover = true } label: {
             Circle().fill(Color(hex: colorHex)).frame(width: 28, height: 28)
         }
         .buttonStyle(.plain)
+        .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
+            HStack(spacing: 8) {
+                ForEach(palette, id: \.self) { hex in
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: hex))
+                            .frame(width: 24, height: 24)
+                        if colorHex == hex {
+                            Circle()
+                                .strokeBorder(.white, lineWidth: 2)
+                                .frame(width: 24, height: 24)
+                            Circle()
+                                .strokeBorder(.primary.opacity(0.4), lineWidth: 1)
+                                .frame(width: 24, height: 24)
+                        }
+                    }
+                    .onTapGesture {
+                        colorHex = hex
+                        showingPopover = false
+                    }
+                }
+            }
+            .padding(12)
+        }
     }
 }
 
