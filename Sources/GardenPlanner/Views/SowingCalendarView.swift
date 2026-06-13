@@ -2,9 +2,18 @@ import SwiftUI
 
 struct SowingCalendarView: View {
     @Environment(AppData.self) private var appData
-    @State private var year = Calendar.current.component(.year, from: Date())
+    private let year = Calendar.current.component(.year, from: Date())
+    @State private var nameColumnWidth: CGFloat = 160
+    @State private var filterDate: Date? = nil
+    @State private var showingDatePicker = false
 
     private let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+    let labelW: CGFloat = 80
+    let monthGap: CGFloat = 4
+    let innerGap: CGFloat = 1
+    let rowH: CGFloat = 22
+    let gridPadding: CGFloat = 16
 
     struct ResolvedSeed {
         let seed: Seed
@@ -14,7 +23,11 @@ struct SowingCalendarView: View {
     var resolvedSeeds: [ResolvedSeed] {
         appData.seeds
             .map { ResolvedSeed(seed: $0, windows: appData.resolvedWindows(for: $0, year: year)) }
-            .filter { !$0.windows.isEmpty }
+            .filter { rs in
+                guard !rs.windows.isEmpty else { return false }
+                guard let date = filterDate else { return true }
+                return rs.windows.contains { _, start, end in date >= start && date <= end }
+            }
             .sorted { $0.seed.displayName < $1.seed.displayName }
     }
 
@@ -27,13 +40,69 @@ struct SowingCalendarView: View {
         Calendar.current.date(byAdding: .day, value: 7, to: weekStartDate(month: month, week: week))!
     }
 
+    func weekW(availableWidth: CGFloat) -> CGFloat {
+        let fixed = nameColumnWidth + labelW + (11 * monthGap) + (12 * 3 * innerGap) + (gridPadding * 2)
+        return max(10, (availableWidth - fixed) / 48)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button { year -= 1 } label: { Image(systemName: "chevron.left") }
-                Text(String(year)).font(.title2).fontWeight(.semibold).frame(width: 60)
-                Button { year += 1 } label: { Image(systemName: "chevron.right") }
+            HStack(spacing: 12) {
+                Button {
+                    filterDate = Date()
+                } label: {
+                    Text("Today")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    showingDatePicker.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                        if let date = filterDate {
+                            Text(date, format: .dateTime.day().month())
+                        } else {
+                            Text("Filter by date")
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .popover(isPresented: $showingDatePicker, arrowEdge: .bottom) {
+                    VStack(spacing: 12) {
+                        DatePicker(
+                            "Select date",
+                            selection: Binding(
+                                get: { filterDate ?? Date() },
+                                set: { filterDate = $0 }
+                            ),
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .frame(width: 300)
+                    }
+                    .padding()
+                }
+
+                if filterDate != nil {
+                    Button {
+                        filterDate = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear date filter")
+                }
+
                 Spacer()
+
+                if filterDate != nil {
+                    Text("\(resolvedSeeds.count) seed\(resolvedSeeds.count == 1 ? "" : "s") sowable on this date")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding()
 
@@ -42,56 +111,88 @@ struct SowingCalendarView: View {
             if appData.seeds.isEmpty {
                 ContentUnavailableView("No Seeds", systemImage: "leaf", description: Text("Add seeds to the catalogue to see your sowing calendar."))
             } else {
-                ScrollView([.horizontal, .vertical]) {
-                    calendarGrid
-                        .padding()
+                GeometryReader { geo in
+                    ScrollView(.vertical) {
+                        calendarGrid(weekW: weekW(availableWidth: geo.size.width))
+                            .padding(gridPadding)
+                    }
                 }
+
+                Divider()
+                Text("Drag the column edge to resize the plant name column")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, gridPadding)
+                    .padding(.vertical, 6)
             }
         }
         .navigationTitle("Sowing Calendar")
     }
 
-    var calendarGrid: some View {
-        let weekW: CGFloat = 16
-        let gap: CGFloat = 1
-        let monthGap: CGFloat = 5
-
-        return VStack(alignment: .leading, spacing: 0) {
+    func calendarGrid(weekW: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             // Month header
             HStack(spacing: 0) {
-                Spacer().frame(width: 170)
+                // Resizable name column header with drag handle
+                HStack(spacing: 0) {
+                    Text("Plant")
+                        .font(.caption).fontWeight(.semibold)
+                        .frame(width: nameColumnWidth - 8, alignment: .leading)
+                    // Drag handle
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 3, height: 16)
+                        .cornerRadius(1.5)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { val in
+                                    nameColumnWidth = max(80, nameColumnWidth + val.translation.width)
+                                }
+                        )
+                        .cursor(.resizeLeftRight)
+                        .padding(.trailing, 5)
+                }
+                .frame(width: nameColumnWidth)
+
+                Text("Window")
+                    .font(.caption).fontWeight(.semibold)
+                    .frame(width: labelW, alignment: .leading)
+
                 ForEach(1...12, id: \.self) { m in
                     Text(months[m - 1])
                         .font(.caption).fontWeight(.semibold)
-                        .frame(width: weekW * 4 + gap * 3, alignment: .center)
+                        .frame(width: weekW * 4 + innerGap * 3, alignment: .center)
                     if m < 12 { Spacer().frame(width: monthGap) }
                 }
             }
-            .padding(.bottom, 3)
+            .padding(.bottom, 4)
 
             Divider()
 
             ForEach(resolvedSeeds, id: \.seed.id) { rs in
-                // One row per sowing window
                 ForEach(rs.windows.indices, id: \.self) { i in
                     let rw = rs.windows[i]
                     HStack(spacing: 0) {
-                        // Seed name only on first window row
                         if i == 0 {
                             Text(rs.seed.displayName)
                                 .font(.callout).lineLimit(1)
-                                .frame(width: 120, alignment: .leading)
+                                .frame(width: nameColumnWidth, alignment: .leading)
                         } else {
-                            Spacer().frame(width: 120)
+                            Spacer().frame(width: nameColumnWidth)
                         }
-                        // Window label
-                        Text(rw.window.label)
-                            .font(.caption).foregroundStyle(.secondary)
-                            .frame(width: 40, alignment: .leading)
-                            .padding(.trailing, 10)
+
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color(hex: rw.window.colorHex))
+                                .frame(width: 7, height: 7)
+                            Text(rw.window.label)
+                                .font(.caption).foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(width: labelW, alignment: .leading)
 
                         ForEach(1...12, id: \.self) { m in
-                            HStack(spacing: gap) {
+                            HStack(spacing: innerGap) {
                                 ForEach(1...4, id: \.self) { w in
                                     RangeWeekCell(
                                         weekStart: weekStartDate(month: m, week: w),
@@ -99,7 +200,8 @@ struct SowingCalendarView: View {
                                         windowStart: rw.start,
                                         windowEnd: rw.end,
                                         colorHex: rw.window.colorHex,
-                                        width: weekW
+                                        width: weekW,
+                                        height: rowH
                                     )
                                 }
                             }
@@ -117,6 +219,8 @@ struct SowingCalendarView: View {
     }
 }
 
+// MARK: -
+
 struct RangeWeekCell: View {
     let weekStart: Date
     let weekEnd: Date
@@ -124,26 +228,26 @@ struct RangeWeekCell: View {
     let windowEnd: Date
     let colorHex: String
     let width: CGFloat
+    let height: CGFloat
+    var onHover: (String?) -> Void = { _ in }
 
     @State private var isHovered = false
+    @State private var showTooltip = false
+    @State private var tooltipTask: DispatchWorkItem?
 
-    // Does this week slot overlap the sowing window?
     var overlap: Overlap {
-        // No overlap
         if weekEnd <= windowStart || weekStart >= windowEnd { return .none }
-        // Leading edge of window starts in this slot
         let startsHere = windowStart >= weekStart && windowStart < weekEnd
-        // Trailing edge ends in this slot
-        let endsHere = windowEnd > weekStart && windowEnd <= weekEnd
+        let endsHere   = windowEnd   >  weekStart && windowEnd   <= weekEnd
         if startsHere && endsHere { return .full }
         if startsHere { return .start }
-        if endsHere { return .end }
+        if endsHere   { return .end }
         return .middle
     }
 
     enum Overlap { case none, start, middle, end, full }
 
-    var tooltipText: String {
+    var dateRangeText: String {
         let fmt = DateFormatter()
         fmt.dateFormat = "d MMM"
         return "\(fmt.string(from: windowStart)) – \(fmt.string(from: windowEnd))"
@@ -151,39 +255,69 @@ struct RangeWeekCell: View {
 
     var body: some View {
         let color = Color(hex: colorHex)
-        let alpha: Double = isHovered ? 0.65 : 0.35
+        let alpha: Double = isHovered ? 0.7 : 0.35
 
         ZStack {
             switch overlap {
             case .none:
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.primary.opacity(0.05))
+                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.05))
             case .full:
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(color.opacity(alpha))
+                RoundedRectangle(cornerRadius: 3).fill(color.opacity(alpha))
             case .start:
-                // Fill right half with flat edge on right
                 HStack(spacing: 0) {
                     Spacer()
                     color.opacity(alpha)
                 }
-                .clipShape(
-                    UnevenRoundedRectangle(topLeadingRadius: 3, bottomLeadingRadius: 3, bottomTrailingRadius: 0, topTrailingRadius: 0)
-                )
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 3, bottomLeadingRadius: 3,
+                    bottomTrailingRadius: 0, topTrailingRadius: 0))
             case .end:
                 HStack(spacing: 0) {
                     color.opacity(alpha)
                     Spacer()
                 }
-                .clipShape(
-                    UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 3, topTrailingRadius: 3)
-                )
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 0, bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 3, topTrailingRadius: 3))
             case .middle:
                 color.opacity(alpha)
             }
         }
-        .frame(width: width, height: 20)
-        .help(overlap == .none ? "" : tooltipText)
-        .onHover { isHovered = $0 && overlap != .none }
+        .frame(width: width, height: height)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if showTooltip && overlap != .none {
+                Text(dateRangeText)
+                    .font(.caption)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                    .shadow(radius: 3)
+                    .fixedSize()
+                    .offset(y: -height - 4)
+                    .zIndex(999)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onHover { inside in
+            isHovered = inside && overlap != .none
+            tooltipTask?.cancel()
+            if inside && overlap != .none {
+                let task = DispatchWorkItem { showTooltip = true }
+                tooltipTask = task
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: task)
+            } else {
+                showTooltip = false
+            }
+        }
+    }
+}
+
+// Cursor extension already defined in GardenBedPlannerView.swift — reuse NSCursor directly
+extension View {
+    func cursor(_ cursor: NSCursor) -> some View {
+        self.onHover { inside in
+            if inside { cursor.push() } else { NSCursor.pop() }
+        }
     }
 }

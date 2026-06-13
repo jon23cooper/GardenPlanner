@@ -56,6 +56,7 @@ struct SeedCatalogView: View {
             if let seed = selectedSeed, let idx = appData.seeds.firstIndex(where: { $0.id == seed.id }) {
                 @Bindable var bindableData = appData
                 SeedDetailView(seed: $bindableData.seeds[idx])
+                    .id(seed.id)
             } else {
                 ContentUnavailableView("Select a Seed", systemImage: "leaf", description: Text("Choose a seed from the list to view details."))
             }
@@ -146,16 +147,19 @@ struct SeedDetailView: View {
 
                 // Growing info
                 GroupBox("Growing") {
-                    LabeledContent("Sun requirement") {
-                        Picker("", selection: $seed.sunRequirement) {
-                            ForEach(SunRequirement.allCases, id: \.self) { Text($0.rawValue) }
-                        }.labelsHidden()
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("Sun requirement") {
+                            Picker("", selection: $seed.sunRequirement) {
+                                ForEach(SunRequirement.allCases, id: \.self) { Text($0.rawValue) }
+                            }.labelsHidden()
+                        }
+                        OptionalDoubleField(label: "Plant spacing (cm)", value: $seed.spacingCm)
+                        OptionalDoubleField(label: "Row spacing (cm)", value: $seed.rowSpacingCm)
+                        OptionalDoubleField(label: "Sow depth (cm)", value: $seed.depthCm)
+                        OptionalRangeField(label: "Days to germination", range: $seed.daysToGermination)
+                        OptionalRangeField(label: "Days to harvest", range: $seed.daysToHarvest)
                     }
-                    OptionalDoubleField(label: "Plant spacing (cm)", value: $seed.spacingCm)
-                    OptionalDoubleField(label: "Row spacing (cm)", value: $seed.rowSpacingCm)
-                    OptionalDoubleField(label: "Sow depth (cm)", value: $seed.depthCm)
-                    OptionalRangeField(label: "Days to germination", range: $seed.daysToGermination)
-                    OptionalRangeField(label: "Days to harvest", range: $seed.daysToHarvest)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 // Companions
