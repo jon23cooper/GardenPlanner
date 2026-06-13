@@ -130,23 +130,7 @@ struct SeedDetailView: View {
                 }
 
                 // Sowing windows
-                GroupBox("Sowing Windows (weeks from last frost)") {
-                    OptionalIntField(
-                        label: "Sow indoors (weeks before frost)",
-                        hint: "e.g. 8",
-                        value: $seed.sowIndoorsWeeksBeforeFrost
-                    )
-                    OptionalIntField(
-                        label: "Sow outdoors (weeks from frost)",
-                        hint: "negative = before frost",
-                        value: $seed.sowOutdoorsWeeksFromFrost
-                    )
-                    if seed.sowIndoorsWeeksBeforeFrost != nil {
-                        LabeledContent("Transplant after (weeks)") {
-                            Stepper("\(seed.transplantWeeksAfterIndoorSow)", value: $seed.transplantWeeksAfterIndoorSow, in: 1...20)
-                        }
-                    }
-                }
+                SowingWindowsEditor(windows: $seed.sowingWindows)
 
                 // Growing info
                 GroupBox("Growing") {
@@ -247,6 +231,125 @@ struct ColorPickerField: View {
         }
     }
 }
+
+// MARK: - Sowing Windows Editor
+
+struct SowingWindowsEditor: View {
+    @Binding var windows: [SowingWindow]
+
+    let suggestedLabels = ["Indoors", "Outdoors", "Spring", "Autumn", "Greenhouse", "Direct sow"]
+    let palette = ["#4CAF50","#8BC34A","#FF9800","#F44336","#9C27B0","#2196F3","#FFEB3B","#795548","#607D8B","#E91E63"]
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach($windows) { $window in
+                    HStack(alignment: .top, spacing: 8) {
+                        SowingWindowRow(window: $window)
+                        Button(role: .destructive) {
+                            windows.removeAll { $0.id == window.id }
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
+                    }
+                    Divider()
+                }
+
+                Button {
+                    windows.append(SowingWindow(
+                        label: suggestedLabel(),
+                        colorHex: palette[windows.count % palette.count]
+                    ))
+                } label: {
+                    Label("Add Sowing Window", systemImage: "plus")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+            }
+        } label: {
+            Text("Sowing Windows")
+        }
+    }
+
+    func suggestedLabel() -> String {
+        let existing = Set(windows.map { $0.label })
+        return suggestedLabels.first { !existing.contains($0) } ?? "Window \(windows.count + 1)"
+    }
+}
+
+struct SowingWindowRow: View {
+    @Binding var window: SowingWindow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Label + colour
+            HStack {
+                ColorPickerField(colorHex: $window.colorHex)
+                TextField("Label", text: $window.label)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+
+            // Start date
+            SowDateSpecRow(label: "From", spec: $window.start)
+            // End date
+            SowDateSpecRow(label: "To", spec: $window.end)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct SowDateSpecRow: View {
+    let label: String
+    @Binding var spec: SowDateSpec
+
+    private let monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 28, alignment: .trailing)
+
+            Picker("", selection: $spec.kind) {
+                Text("Fixed date").tag(SowDateSpec.Kind.fixed)
+                Text("Frost relative").tag(SowDateSpec.Kind.frostRelative)
+            }
+            .labelsHidden()
+            .frame(width: 130)
+
+            if spec.kind == .fixed {
+                Picker("", selection: $spec.month) {
+                    ForEach(1...12, id: \.self) { Text(monthNames[$0 - 1]).tag($0) }
+                }
+                .labelsHidden()
+                .frame(width: 70)
+
+                Picker("", selection: $spec.day) {
+                    ForEach(1...31, id: \.self) { Text(String($0)).tag($0) }
+                }
+                .labelsHidden()
+                .frame(width: 55)
+            } else {
+                HStack(spacing: 4) {
+                    Stepper(value: $spec.weeksFromFrost, in: -52...52) {
+                        let abs = abs(spec.weeksFromFrost)
+                        let dir = spec.weeksFromFrost < 0 ? "before" : (spec.weeksFromFrost == 0 ? "at" : "after")
+                        Text("\(abs)w \(dir) frost")
+                            .font(.callout)
+                            .frame(width: 120, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Legacy field (kept for any remaining uses)
 
 struct OptionalIntField: View {
     let label: String
@@ -410,8 +513,8 @@ struct AddSeedView: View {
                         .focused($focusedField, equals: .supplier)
                 }
                 Section("Sowing") {
-                    OptionalIntField(label: "Sow indoors (weeks before frost)", hint: "8", value: $seed.sowIndoorsWeeksBeforeFrost)
-                    OptionalIntField(label: "Sow outdoors (weeks from frost)", hint: "0", value: $seed.sowOutdoorsWeeksFromFrost)
+                    Text("Add sowing windows after saving, in the seed detail view.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Add Seed")

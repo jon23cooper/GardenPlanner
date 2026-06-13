@@ -32,18 +32,20 @@ final class AppData {
         Calendar.current.date(from: DateComponents(year: year, month: firstFrostMonth, day: firstFrostDay))!
     }
 
-    // Returns the recommended indoor sow date for a seed in a given year
-    func indoorSowDate(for seed: Seed, year: Int) -> Date? {
-        guard let weeks = seed.sowIndoorsWeeksBeforeFrost else { return nil }
-        let frost = lastFrostDate(year: year)
-        return Calendar.current.date(byAdding: .weekOfYear, value: -weeks, to: frost)
+    func resolve(_ spec: SowDateSpec, year: Int) -> Date {
+        switch spec.kind {
+        case .fixed:
+            return Calendar.current.date(from: DateComponents(year: year, month: spec.month, day: spec.day))!
+        case .frostRelative:
+            let frost = lastFrostDate(year: year)
+            return Calendar.current.date(byAdding: .weekOfYear, value: spec.weeksFromFrost, to: frost)!
+        }
     }
 
-    // Returns the recommended outdoor sow date for a seed in a given year
-    func outdoorSowDate(for seed: Seed, year: Int) -> Date? {
-        guard let weeks = seed.sowOutdoorsWeeksFromFrost else { return nil }
-        let frost = lastFrostDate(year: year)
-        return Calendar.current.date(byAdding: .weekOfYear, value: weeks, to: frost)
+    func resolvedWindows(for seed: Seed, year: Int) -> [(window: SowingWindow, start: Date, end: Date)] {
+        seed.sowingWindows.map { w in
+            (w, resolve(w.start, year: year), resolve(w.end, year: year))
+        }
     }
 
     // MARK: - Lookup helpers
