@@ -1,20 +1,5 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
-// Drag payload: seed UUID as string
-struct SeedDragItem: Transferable {
-    let seedId: UUID
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(for: SeedDragItem.self, contentType: .seedDrag)
-    }
-}
-
-extension SeedDragItem: Codable {}
-
-extension UTType {
-    static var seedDrag: UTType { UTType(exportedAs: "com.gardenplanner.seed") }
-}
 
 struct GardenBedPlannerView: View {
     @Environment(AppData.self) private var appData
@@ -107,7 +92,7 @@ struct SeedPaletteRow: View {
         .padding(.vertical, 5)
         .background(.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .draggable(SeedDragItem(seedId: seed.id))
+        .draggable(seed.id.uuidString)
         .cursor(.openHand)
     }
 }
@@ -144,21 +129,19 @@ struct BedGridView: View {
                         ForEach(0..<bed.columns, id: \.self) { col in
                             let pos = GridPosition(row: row, column: col)
                             let cell = bed.cell(at: pos, year: year)
+                            let plantedSeed = cell.flatMap { appData.seed(id: $0.seedId) }
                             BedCellView(
                                 cell: cell,
-                                seed: cell.flatMap { appData.seed(id: $0.seedId) },
-                                cellSize: cellSize
+                                seed: plantedSeed,
+                                cellSize: cellSize,
+                                allSeeds: appData.seeds,
+                                onDrop: { uuidString in
+                                    guard let seedId = UUID(uuidString: uuidString) else { return }
+                                    appData.plantSeed(seedId, in: bed.id, at: pos, year: year)
+                                },
+                                onClear: { appData.clearCell(in: bed.id, at: pos, year: year) },
+                                onPlant: { seedId in appData.plantSeed(seedId, in: bed.id, at: pos, year: year) }
                             )
-                            .dropDestination(for: SeedDragItem.self) { items, _ in
-                                guard let item = items.first else { return false }
-                                appData.plantSeed(item.seedId, in: bed.id, at: pos, year: year)
-                                return true
-                            }
-                            .onTapGesture(count: 2) {
-                                if cell != nil {
-                                    appData.clearCell(in: bed.id, at: pos, year: year)
-                                }
-                            }
                         }
                     }
                 }
@@ -168,7 +151,9 @@ struct BedGridView: View {
         .navigationTitle(bed.name)
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 16) {
-                Label("Drag seeds from the panel onto cells", systemImage: "arrow.left")
+                Label("Right-click a cell to plant a seed", systemImage: "computermouse")
+                Text("·")
+                Label("Or drag from the seed list on the left", systemImage: "arrow.left")
                 Text("·")
                 Label("Double-click to clear", systemImage: "xmark")
             }
@@ -185,6 +170,10 @@ struct BedCellView: View {
     let cell: BedCell?
     let seed: Seed?
     let cellSize: CGFloat
+    let allSeeds: [Seed]
+    let onDrop: (String) -> Void
+    let onClear: () -> Void
+    let onPlant: (UUID) -> Void
     @State private var isTargeted = false
 
     var body: some View {
@@ -211,7 +200,25 @@ struct BedCellView: View {
             }
         }
         .frame(width: cellSize, height: cellSize)
-        .dropDestination(for: SeedDragItem.self, action: { _, _ in false }, isTargeted: { isTargeted = $0 })
+        .dropDestination(for: String.self) { items, _ in
+            guard let uuidString = items.first else { return false }
+            onDrop(uuidString)
+            return true
+        } isTargeted: { isTargeted = $0 }
+        .onTapGesture(count: 2) {
+            if cell != nil { onClear() }
+        }
+        .contextMenu {
+            Menu("Plant seed here") {
+                ForEach(allSeeds.sorted { $0.displayName < $1.displayName }) { s in
+                    Button(s.displayName) { onPlant(s.id) }
+                }
+            }
+            if cell != nil {
+                Divider()
+                Button("Clear cell", role: .destructive) { onClear() }
+            }
+        }
     }
 
     var cellBackground: Color {
@@ -226,36 +233,72 @@ struct AddBedView: View {
     var onAdd: (GardenBed) -> Void
 
     @State private var name = ""
-    @State private var columns = 4
-    @State private var rows = 4
+    @State private var widthCm = 120.0
+    @State private var lengthCm = 240.0
     @State private var squareSizeCm = 30.0
 
+    var columns: Int { max(1, Int((widthCm / squareSizeCm).rounded())) }
+    var rows: Int    { max(1, Int((lengthCm / squareSizeCm).rounded())) }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Bed name", text: $name)
-                Stepper("Columns: \(columns)", value: $columns, in: 1...30)
-                Stepper("Rows: \(rows)", value: $rows, in: 1...30)
+        VStack(spacing: 0) {
+            Text("New Garden Bed")
+                .font(.headline)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 14) {
+                LabeledContent("Bed name") {
+                    TextField("e.g. Raised Bed 1", text: $name)
+                }
+                LabeledContent("Width (cm)") {
+                    TextField("120", value: $widthCm, format: .number)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                }
+                LabeledContent("Length (cm)") {
+                    TextField("240", value: $lengthCm, format: .number)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                }
                 LabeledContent("Square size (cm)") {
                     TextField("30", value: $squareSizeCm, format: .number)
-                        .frame(width: 60)
                         .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                }
+                Divider()
+                HStack {
+                    Image(systemName: "squareshape.split.2x2")
+                        .foregroundStyle(.secondary)
+                    Text("\(columns) × \(rows) grid (\(columns * rows) squares)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("New Garden Bed")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        let bed = GardenBed(name: name, columns: columns, rows: rows, squareSizeCm: squareSizeCm)
-                        onAdd(bed)
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Add") {
+                    let bed = GardenBed(name: name, columns: columns, rows: rows, squareSizeCm: squareSizeCm)
+                    onAdd(bed)
+                    dismiss()
                 }
+                .buttonStyle(.borderedProminent)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || squareSizeCm <= 0)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .frame(width: 340, height: 250)
+        .frame(width: 380, height: 320)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NSApp.activate(ignoringOtherApps: true)

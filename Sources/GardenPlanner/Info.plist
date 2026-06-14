@@ -22,5 +22,18 @@
     <true/>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.jon.gardenplanner.seed</string>
+            <key>UTTypeDescription</key>
+            <string>Garden Planner Seed</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

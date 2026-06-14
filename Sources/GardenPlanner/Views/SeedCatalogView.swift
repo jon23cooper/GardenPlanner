@@ -156,6 +156,7 @@ struct SeedDetailView: View {
                         OptionalDoubleField(label: "Plant spacing (cm)", value: $seed.spacingCm)
                         OptionalDoubleField(label: "Row spacing (cm)", value: $seed.rowSpacingCm)
                         OptionalDoubleField(label: "Sow depth (cm)", value: $seed.depthCm)
+                        OptionalDoubleField(label: "Height (cm)", value: $seed.heightCm)
                         OptionalRangeField(label: "Days to germination", range: $seed.daysToGermination)
                         OptionalRangeField(label: "Days to harvest", range: $seed.daysToHarvest)
                     }
@@ -196,7 +197,6 @@ struct SeedDetailView: View {
             }
             .padding()
         }
-        .onChange(of: seed) { appData.save() }
     }
 
     func outcomeColor(_ outcome: Outcome) -> Color {
@@ -466,7 +466,7 @@ struct TagListField: View {
                     .foregroundStyle(accentColor)
                     .clipShape(Capsule())
                 }
-                HStack {
+                HStack(spacing: 4) {
                     TextField("Add…", text: $newTag)
                         .frame(width: 80)
                         .font(.caption)
@@ -475,6 +475,11 @@ struct TagListField: View {
                             if !t.isEmpty && !tags.contains(t) { tags.append(t) }
                             newTag = ""
                         }
+                    if !newTag.isEmpty {
+                        Text("↵ Return to add")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }

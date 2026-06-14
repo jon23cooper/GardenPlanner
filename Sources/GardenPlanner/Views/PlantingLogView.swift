@@ -154,7 +154,6 @@ struct PlantingRecordDetailView: View {
             }
             .padding()
         }
-        .onChange(of: record) { appData.save() }
     }
 }
 

@@ -56,9 +56,5 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("Settings")
         .frame(width: 500, height: 360)
-        .onChange(of: appData.lastFrostMonth) { appData.saveFrostDates() }
-        .onChange(of: appData.lastFrostDay) { appData.saveFrostDates() }
-        .onChange(of: appData.firstFrostMonth) { appData.saveFrostDates() }
-        .onChange(of: appData.firstFrostDay) { appData.saveFrostDates() }
     }
 }

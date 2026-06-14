@@ -3,15 +3,15 @@ import SwiftUI
 
 @Observable
 final class AppData {
-    var seeds: [Seed] = []
-    var plantingRecords: [PlantingRecord] = []
-    var gardenBeds: [GardenBed] = []
+    var seeds: [Seed] = [] { didSet { save() } }
+    var plantingRecords: [PlantingRecord] = [] { didSet { save() } }
+    var gardenBeds: [GardenBed] = [] { didSet { save() } }
 
     // Frost dates stored as month+day only (year is ignored)
-    var lastFrostMonth: Int = 4
-    var lastFrostDay: Int = 15
-    var firstFrostMonth: Int = 10
-    var firstFrostDay: Int = 15
+    var lastFrostMonth: Int = 4 { didSet { save() } }
+    var lastFrostDay: Int = 15 { didSet { save() } }
+    var firstFrostMonth: Int = 10 { didSet { save() } }
+    var firstFrostDay: Int = 15 { didSet { save() } }
 
     private let dataDir: URL
 
@@ -127,10 +127,6 @@ final class AppData {
     func clearCell(in bedId: UUID, at position: GridPosition, year: Int) {
         guard let bedIdx = gardenBeds.firstIndex(where: { $0.id == bedId }) else { return }
         gardenBeds[bedIdx].cells.removeAll { $0.row == position.row && $0.column == position.column && $0.year == year }
-        save()
-    }
-
-    func saveFrostDates() {
         save()
     }
 

@@ -12,6 +12,7 @@ struct Seed: Identifiable, Codable, Hashable {
     var spacingCm: Double?
     var rowSpacingCm: Double?
     var depthCm: Double?
+    var heightCm: Double?
     var daysToGermination: ClosedRange<Int>?
     var daysToHarvest: ClosedRange<Int>?
 
@@ -64,7 +65,7 @@ extension Seed {
         case sowingWindows
         // Legacy keys — decoded only for migration
         case sowIndoorsWeeksBeforeFrost, sowOutdoorsWeeksFromFrost, transplantWeeksAfterIndoorSow
-        case spacingCm, rowSpacingCm, depthCm
+        case spacingCm, rowSpacingCm, depthCm, heightCm
         case daysToGerminationMin, daysToGerminationMax
         case daysToHarvestMin, daysToHarvestMax
         case url
@@ -108,6 +109,7 @@ extension Seed {
         spacingCm = try c.decodeIfPresent(Double.self, forKey: .spacingCm)
         rowSpacingCm = try c.decodeIfPresent(Double.self, forKey: .rowSpacingCm)
         depthCm = try c.decodeIfPresent(Double.self, forKey: .depthCm)
+        heightCm = try c.decodeIfPresent(Double.self, forKey: .heightCm)
         if let lo = try c.decodeIfPresent(Int.self, forKey: .daysToGerminationMin),
            let hi = try c.decodeIfPresent(Int.self, forKey: .daysToGerminationMax) {
             daysToGermination = lo...hi
@@ -135,6 +137,7 @@ extension Seed {
         try c.encodeIfPresent(spacingCm, forKey: .spacingCm)
         try c.encodeIfPresent(rowSpacingCm, forKey: .rowSpacingCm)
         try c.encodeIfPresent(depthCm, forKey: .depthCm)
+        try c.encodeIfPresent(heightCm, forKey: .heightCm)
         try c.encodeIfPresent(daysToGermination?.lowerBound, forKey: .daysToGerminationMin)
         try c.encodeIfPresent(daysToGermination?.upperBound, forKey: .daysToGerminationMax)
         try c.encodeIfPresent(daysToHarvest?.lowerBound, forKey: .daysToHarvestMin)
