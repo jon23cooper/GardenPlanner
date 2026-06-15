@@ -8,6 +8,12 @@ final class AppData {
     var gardenBeds: [GardenBed] = [] { didSet { save() } }
     var customLocations: [String] = ["Indoors", "Outdoors", "Greenhouse"] { didSet { save() } }
 
+    var webServerEnabled: Bool = true { didSet { save(); webServerEnabled ? startWebServer() : stopWebServer() } }
+    var webServerPort: Int = 8080 { didSet { save(); if webServerEnabled { restartWebServer() } } }
+    var webServerRunning: Bool = false
+
+    private var _webServer: WebServer?
+
     // Frost dates stored as month+day only (year is ignored)
     var lastFrostMonth: Int = 4 { didSet { save() } }
     var lastFrostDay: Int = 15 { didSet { save() } }
@@ -21,6 +27,28 @@ final class AppData {
         dataDir = docs.appendingPathComponent("GardenPlanner/Data")
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
         load()
+        if webServerEnabled { startWebServer() }
+    }
+
+    // MARK: - Web server lifecycle
+
+    func startWebServer() {
+        _webServer?.stop()
+        let server = WebServer(port: UInt16(clamping: webServerPort), appData: self)
+        server.onStateChange = { [weak self] running in self?.webServerRunning = running }
+        server.start()
+        _webServer = server
+    }
+
+    func stopWebServer() {
+        _webServer?.stop()
+        _webServer = nil
+        webServerRunning = false
+    }
+
+    func restartWebServer() {
+        stopWebServer()
+        startWebServer()
     }
 
     // MARK: - Frost date helpers
@@ -145,6 +173,8 @@ final class AppData {
         var firstFrostMonth: Int
         var firstFrostDay: Int
         var customLocations: [String]?
+        var webServerEnabled: Bool?
+        var webServerPort: Int?
     }
 
     func save() {
@@ -156,7 +186,9 @@ final class AppData {
             lastFrostDay: lastFrostDay,
             firstFrostMonth: firstFrostMonth,
             firstFrostDay: firstFrostDay,
-            customLocations: customLocations
+            customLocations: customLocations,
+            webServerEnabled: webServerEnabled,
+            webServerPort: webServerPort
         )
         let url = dataDir.appendingPathComponent("garden.json")
         if let data = try? JSONEncoder().encode(file) {
@@ -176,5 +208,7 @@ final class AppData {
         firstFrostMonth = file.firstFrostMonth
         firstFrostDay = file.firstFrostDay
         customLocations = file.customLocations ?? ["Indoors", "Outdoors", "Greenhouse"]
+        webServerEnabled = file.webServerEnabled ?? true
+        webServerPort = file.webServerPort ?? 8080
     }
 }
