@@ -281,6 +281,7 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
 .badge{font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--green-lt);color:var(--green-dk)}
 .badge.low{background:#FFF3E0;color:#E65100}.badge.gone{background:#FFEBEE;color:#C62828}
 .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:14px 0 8px}
+#p-beds{margin-left:-14px;margin-right:-14px;padding:0 14px}
 .empty{text-align:center;padding:40px 20px;color:var(--text2);font-size:15px}
 .cell{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
 .cell.planted{border-width:2px}
@@ -630,6 +631,8 @@ function adjustZoom(delta) {
   let startDist = 0, startScale = 1;
   function dist(t){ const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy); }
   const inGrid = e => { const w=document.getElementById('bed-grid-wrap'); return w&&w.contains(e.target); };
+  window.addEventListener('resize', () => { if (bedData) { renderBedGrid(); applyScale(); } });
+
   document.addEventListener('touchstart', e=>{
     if(!inGrid(e)||e.touches.length!==2) return;
     startDist=dist(e.touches); startScale=bedScale; e.preventDefault();
