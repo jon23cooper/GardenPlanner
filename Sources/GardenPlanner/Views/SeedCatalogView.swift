@@ -212,7 +212,7 @@ struct SeedDetailView: View {
                         ForEach(history) { record in
                             HStack {
                                 Text(record.dateSown, format: .dateTime.day().month().year())
-                                Text(record.location.rawValue).foregroundStyle(.secondary)
+                                Text(locationName(record.location)).foregroundStyle(.secondary)
                                 Spacer()
                                 Text(record.outcome.rawValue)
                                     .font(.caption)
@@ -224,6 +224,13 @@ struct SeedDetailView: View {
                 }
             }
             .padding()
+        }
+    }
+
+    func locationName(_ location: PlantLocation) -> String {
+        switch location {
+        case .bed(let id): return appData.gardenBeds.first { $0.id == id }?.name ?? "Unknown bed"
+        case .custom(let s): return s
         }
     }
 

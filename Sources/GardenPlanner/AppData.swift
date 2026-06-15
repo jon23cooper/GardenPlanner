@@ -6,6 +6,7 @@ final class AppData {
     var seeds: [Seed] = [] { didSet { save() } }
     var plantingRecords: [PlantingRecord] = [] { didSet { save() } }
     var gardenBeds: [GardenBed] = [] { didSet { save() } }
+    var customLocations: [String] = ["Indoors", "Outdoors", "Greenhouse"] { didSet { save() } }
 
     // Frost dates stored as month+day only (year is ignored)
     var lastFrostMonth: Int = 4 { didSet { save() } }
@@ -140,6 +141,7 @@ final class AppData {
         var lastFrostDay: Int
         var firstFrostMonth: Int
         var firstFrostDay: Int
+        var customLocations: [String]?
     }
 
     func save() {
@@ -150,7 +152,8 @@ final class AppData {
             lastFrostMonth: lastFrostMonth,
             lastFrostDay: lastFrostDay,
             firstFrostMonth: firstFrostMonth,
-            firstFrostDay: firstFrostDay
+            firstFrostDay: firstFrostDay,
+            customLocations: customLocations
         )
         let url = dataDir.appendingPathComponent("garden.json")
         if let data = try? JSONEncoder().encode(file) {
@@ -169,5 +172,6 @@ final class AppData {
         lastFrostDay = file.lastFrostDay
         firstFrostMonth = file.firstFrostMonth
         firstFrostDay = file.firstFrostDay
+        customLocations = file.customLocations ?? ["Indoors", "Outdoors", "Greenhouse"]
     }
 }

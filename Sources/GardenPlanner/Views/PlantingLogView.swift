@@ -75,6 +75,13 @@ struct PlantingRecordRow: View {
     @Environment(AppData.self) private var appData
     let record: PlantingRecord
 
+    var locationName: String {
+        switch record.location {
+        case .bed(let id): return appData.gardenBeds.first { $0.id == id }?.name ?? "Unknown bed"
+        case .custom(let s): return s
+        }
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
@@ -83,7 +90,7 @@ struct PlantingRecordRow: View {
                 HStack(spacing: 6) {
                     Text(record.dateSown, format: .dateTime.day().month())
                     Text("·")
-                    Text(record.location.rawValue)
+                    Text(locationName)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -127,9 +134,7 @@ struct PlantingRecordDetailView: View {
                 GroupBox("Sowing") {
                     LabeledContent("Date sown") { DatePicker("", selection: $record.dateSown, displayedComponents: .date).labelsHidden() }
                     LabeledContent("Location") {
-                        Picker("", selection: $record.location) {
-                            ForEach(SowLocation.allCases, id: \.self) { Text($0.rawValue) }
-                        }.labelsHidden()
+                        LocationPicker(selection: $record.location)
                     }
                     LabeledContent("Quantity sown") {
                         Stepper("\(record.quantitySown)", value: $record.quantitySown, in: 1...9999)
@@ -156,6 +161,98 @@ struct PlantingRecordDetailView: View {
         }
     }
 }
+
+// MARK: - LocationPicker
+
+struct LocationPicker: View {
+    @Binding var selection: PlantLocation
+    @Environment(AppData.self) private var appData
+    @State private var showingAddSheet = false
+    @State private var newLocationName = ""
+
+    var body: some View {
+        HStack {
+            Picker("", selection: $selection) {
+                if !appData.gardenBeds.isEmpty {
+                    Section("Garden Beds") {
+                        ForEach(appData.gardenBeds) { bed in
+                            Text(bed.name).tag(PlantLocation.bed(bed.id))
+                        }
+                    }
+                }
+                Section("Other") {
+                    ForEach(appData.customLocations, id: \.self) { loc in
+                        Text(loc).tag(PlantLocation.custom(loc))
+                    }
+                }
+            }
+            .labelsHidden()
+
+            Button {
+                newLocationName = ""
+                showingAddSheet = true
+            } label: {
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Add custom location")
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            AddCustomLocationView(name: $newLocationName) { name in
+                if !appData.customLocations.contains(name) {
+                    appData.customLocations.append(name)
+                }
+                selection = .custom(name)
+            }
+        }
+    }
+}
+
+struct AddCustomLocationView: View {
+    @Binding var name: String
+    var onAdd: (String) -> Void
+    @Environment(\.dismiss) var dismiss
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("Add Location")
+                .font(.headline)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+            Divider()
+
+            VStack(spacing: 16) {
+                TextField("e.g. Cold frame, Polytunnel", text: $name)
+                    .focused($focused)
+                    .onSubmit { commit() }
+
+                HStack {
+                    Button("Cancel") { dismiss() }
+                    Spacer()
+                    Button("Add") { commit() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .padding()
+        }
+        .frame(width: 300)
+        .onAppear { focused = true }
+    }
+
+    func commit() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        onAdd(trimmed)
+        dismiss()
+    }
+}
+
+// MARK: - OptionalDateField
 
 struct OptionalDateField: View {
     let label: String
@@ -186,6 +283,8 @@ struct OptionalDateField: View {
     }
 }
 
+// MARK: - AddPlantingRecordView
+
 struct AddPlantingRecordView: View {
     @Environment(AppData.self) private var appData
     @Environment(\.dismiss) var dismiss
@@ -193,7 +292,7 @@ struct AddPlantingRecordView: View {
 
     @State private var selectedSeedId: UUID?
     @State private var dateSown = Date()
-    @State private var location = SowLocation.indoor
+    @State private var location: PlantLocation = .custom("Outdoors")
     @State private var quantitySown = 1
 
     var body: some View {
@@ -209,8 +308,8 @@ struct AddPlantingRecordView: View {
                 }
                 Section {
                     DatePicker("Date sown", selection: $dateSown, displayedComponents: .date)
-                    Picker("Location", selection: $location) {
-                        ForEach(SowLocation.allCases, id: \.self) { Text($0.rawValue) }
+                    LabeledContent("Location") {
+                        LocationPicker(selection: $location)
                     }
                     Stepper("Quantity: \(quantitySown)", value: $quantitySown, in: 1...9999)
                 }
@@ -229,8 +328,14 @@ struct AddPlantingRecordView: View {
                 }
             }
         }
-        .frame(width: 380, height: 280)
+        .frame(width: 420, height: 300)
         .onAppear {
+            // Default to first bed if available, otherwise first custom location
+            if let firstBed = appData.gardenBeds.first {
+                location = .bed(firstBed.id)
+            } else if let first = appData.customLocations.first {
+                location = .custom(first)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NSApp.activate(ignoringOtherApps: true)
             }
