@@ -120,6 +120,12 @@ final class WebServer: @unchecked Sendable {
             return apiPlant(body, appData)
         case ("POST", "/api/transplant"):
             return apiTransplant(body, appData)
+        case ("POST", "/api/bed-data"):
+            return apiBedData(body, appData)
+        case ("POST", "/api/bed-plant"):
+            return apiBedPlant(body, appData)
+        case ("POST", "/api/bed-clear"):
+            return apiBedClear(body, appData)
         default:
             return (404, Data(#"{"error":"not found"}"#.utf8), "application/json")
         }
@@ -190,6 +196,53 @@ final class WebServer: @unchecked Sendable {
         return (200, Data(#"{"ok":true}"#.utf8), "application/json")
     }
 
+    // MARK: - POST /api/bed-data
+
+    private func apiBedData(_ body: Data, _ appData: AppData) -> (Int, Data, String) {
+        struct Req: Decodable { var bedId: String; var year: Int }
+        struct CellOut: Encodable { var row, col: Int; var seedId: String?; var seedName: String?; var colorHex: String? }
+        struct Out: Encodable { var rows, columns: Int; var cells: [CellOut] }
+        guard let req = try? JSONDecoder().decode(Req.self, from: body),
+              let bed = appData.gardenBeds.first(where: { $0.id.uuidString == req.bedId }) else {
+            return (400, Data(#"{"error":"bed not found"}"#.utf8), "application/json")
+        }
+        var cells: [CellOut] = []
+        for row in 0..<bed.rows {
+            for col in 0..<bed.columns {
+                let bedCell = bed.cells.first { $0.row == row && $0.column == col && $0.year == req.year }
+                let seed = bedCell.flatMap { appData.seed(id: $0.seedId) }
+                cells.append(CellOut(row: row, col: col, seedId: seed?.id.uuidString, seedName: seed?.displayName, colorHex: seed?.colorHex))
+            }
+        }
+        let out = Out(rows: bed.rows, columns: bed.columns, cells: cells)
+        return (200, (try? JSONEncoder().encode(out)) ?? Data(), "application/json")
+    }
+
+    // MARK: - POST /api/bed-plant
+
+    private func apiBedPlant(_ body: Data, _ appData: AppData) -> (Int, Data, String) {
+        struct Req: Decodable { var bedId, seedId: String; var row, col, year: Int }
+        guard let req = try? JSONDecoder().decode(Req.self, from: body),
+              let bedId = UUID(uuidString: req.bedId),
+              let seedId = UUID(uuidString: req.seedId) else {
+            return (400, Data(#"{"error":"invalid"}"#.utf8), "application/json")
+        }
+        appData.plantSeed(seedId, in: bedId, at: GridPosition(row: req.row, column: req.col), year: req.year)
+        return (200, Data(#"{"ok":true}"#.utf8), "application/json")
+    }
+
+    // MARK: - POST /api/bed-clear
+
+    private func apiBedClear(_ body: Data, _ appData: AppData) -> (Int, Data, String) {
+        struct Req: Decodable { var bedId: String; var row, col, year: Int }
+        guard let req = try? JSONDecoder().decode(Req.self, from: body),
+              let bedId = UUID(uuidString: req.bedId) else {
+            return (400, Data(#"{"error":"invalid"}"#.utf8), "application/json")
+        }
+        appData.clearCell(in: bedId, at: GridPosition(row: req.row, column: req.col), year: req.year)
+        return (200, Data(#"{"ok":true}"#.utf8), "application/json")
+    }
+
     // MARK: - HTML
 
     static let pageHTML = #"""
@@ -229,6 +282,10 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
 .badge.low{background:#FFF3E0;color:#E65100}.badge.gone{background:#FFEBEE;color:#C62828}
 .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:14px 0 8px}
 .empty{text-align:center;padding:40px 20px;color:var(--text2);font-size:15px}
+.cell{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.cell.planted{border-width:2px}
+.cell:active{opacity:.7}
+.grid-row{display:flex;gap:3px;margin-bottom:3px}
 .toast{position:fixed;bottom:calc(var(--tabs) + 14px);left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;z-index:100;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
 .toast.on{opacity:1}
 </style>
@@ -266,6 +323,28 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
     <div class="card" id="seeds-list"></div>
   </div>
 
+  <div class="panel" id="p-beds">
+    <div class="sec">Garden beds</div>
+    <div class="card" style="margin-bottom:10px">
+      <label for="bed-sel">Bed</label>
+      <select id="bed-sel" onchange="loadBed()"></select>
+      <label for="bed-year">Year</label>
+      <select id="bed-year" onchange="loadBed()"></select>
+    </div>
+    <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch"></div>
+  </div>
+
+</div>
+
+<!-- Seed picker overlay for bed planting -->
+<div id="picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;align-items:flex-end" onclick="if(event.target===this)closePicker()">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:70vh;overflow-y:auto;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <strong style="font-size:16px">Plant a seed</strong>
+      <button onclick="closePicker()" style="background:none;border:none;font-size:22px;color:#666;cursor:pointer">×</button>
+    </div>
+    <div id="picker-list"></div>
+  </div>
 </div>
 
 <nav>
@@ -280,6 +359,10 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
   <button class="tab" onclick="show('seeds',this)">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 8C8 10 5.9 16.17 3.82 21H5.71C6.66 19 7.5 17.4 8.5 16C9.9 17 11.3 17.8 12.5 18C14.5 18 16 15 17 13C18 15 18.5 17.1 19 21H21C19 12 23 6 17 8Z"/></svg>
     Seeds
+  </button>
+  <button class="tab" onclick="show('beds',this);loadBed()">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3z"/></svg>
+    Beds
   </button>
 </nav>
 
@@ -297,7 +380,7 @@ async function load() {
   } catch { toast('Could not reach Garden Planner — is the app running?'); }
 }
 
-function render() { renderLog(); renderTransplant(); renderSeeds(); }
+function render() { renderLog(); renderTransplant(); renderSeeds(); renderBedSelectors(); }
 
 function renderLog() {
   const ss = document.getElementById('s-seed');
@@ -398,6 +481,119 @@ function toast(msg) {
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---- Beds ----
+
+let bedData = null;
+let pickerCell = null; // {bedId, row, col, year}
+
+function renderBedSelectors() {
+  const bs = document.getElementById('bed-sel');
+  const prev = bs.value;
+  bs.innerHTML = D.beds.length
+    ? D.beds.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')
+    : '<option value="">No beds</option>';
+  if (prev) bs.value = prev;
+
+  const ys = document.getElementById('bed-year');
+  const yr = new Date().getFullYear();
+  const prevY = ys.value || String(yr);
+  ys.innerHTML = [yr-1,yr,yr+1].map(y=>`<option value="${y}">${y}</option>`).join('');
+  ys.value = prevY;
+}
+
+async function loadBed() {
+  const bedId = document.getElementById('bed-sel').value;
+  const year = parseInt(document.getElementById('bed-year').value);
+  if (!bedId) return;
+  try {
+    const r = await fetch('/api/bed-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bedId,year})});
+    bedData = await r.json();
+    bedData._bedId = bedId; bedData._year = year;
+    renderBedGrid();
+  } catch { toast('Could not load bed data'); }
+}
+
+function renderBedGrid() {
+  const wrap = document.getElementById('bed-grid-wrap');
+  if (!bedData || bedData.rows === undefined) { wrap.innerHTML='<div class="empty">Select a bed above</div>'; return; }
+
+  // Index cells by row,col
+  const cellMap = {};
+  (bedData.cells||[]).forEach(c=>{ cellMap[c.row+','+c.col]=c; });
+
+  let html = '<div style="display:inline-block;min-width:100%">';
+  // Column numbers
+  html += '<div style="display:flex;gap:3px;margin-bottom:3px;padding-left:22px">';
+  for(let c=0;c<bedData.columns;c++) html+=`<div style="width:52px;text-align:center;font-size:10px;color:#999">${c+1}</div>`;
+  html += '</div>';
+  for(let r=0;r<bedData.rows;r++){
+    html+=`<div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">`;
+    html+=`<div style="width:18px;font-size:10px;color:#999;text-align:right;flex-shrink:0">${r+1}</div>`;
+    for(let c=0;c<bedData.columns;c++){
+      const cell = cellMap[r+','+c];
+      if(cell && cell.seedName){
+        const bg = cell.colorHex||'#4CAF50';
+        html+=`<div class="cell planted" style="background:${bg}22;border-color:${bg}" onclick="tapPlanted('${bedData._bedId}',${r},${c},${bedData._year},'${esc(cell.seedName||'')}')">
+          <span class="chip" style="background:${bg};width:8px;height:8px;border-radius:50%;display:block;margin-bottom:2px"></span>
+          <span style="color:#333;line-height:1.1">${esc(cell.seedName)}</span>
+        </div>`;
+      } else {
+        html+=`<div class="cell" style="background:#f8f8f8" onclick="tapEmpty('${bedData._bedId}',${r},${c},${bedData._year})">
+          <span style="color:#ccc;font-size:18px">+</span>
+        </div>`;
+      }
+    }
+    html+='</div>';
+  }
+  html+='</div>';
+  wrap.innerHTML = html;
+}
+
+function tapEmpty(bedId, row, col, year) {
+  pickerCell = {bedId, row, col, year};
+  const list = document.getElementById('picker-list');
+  list.innerHTML = D.seeds.map(s=>`
+    <div class="row" onclick="plantInBed('${s.id}')" style="cursor:pointer">
+      <span class="chip" style="background:${s.colorHex}"></span>
+      <span style="flex:1;font-size:15px">${esc(s.displayName)}</span>
+      <span class="badge ${s.stock===0?'gone':s.stock<=5?'low':''}">${s.stock}</span>
+    </div>`).join('');
+  const ov = document.getElementById('picker-overlay');
+  ov.style.display='flex';
+}
+
+function tapPlanted(bedId, row, col, year, seedName) {
+  if(confirm('Clear '+seedName+' from this cell?')) clearBedCell(bedId, row, col, year);
+}
+
+function closePicker() {
+  document.getElementById('picker-overlay').style.display='none';
+  pickerCell=null;
+}
+
+async function plantInBed(seedId) {
+  if(!pickerCell) return;
+  const {bedId,row,col,year}=pickerCell;
+  closePicker();
+  try {
+    const r = await fetch('/api/bed-plant',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({bedId,seedId,row,col,year})});
+    const res = await r.json();
+    if(res.ok){ toast('Planted ✓'); await load(); await loadBed(); }
+    else toast('Error planting');
+  } catch { toast('Failed to save'); }
+}
+
+async function clearBedCell(bedId, row, col, year) {
+  try {
+    const r = await fetch('/api/bed-clear',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({bedId,row,col,year})});
+    const res = await r.json();
+    if(res.ok){ toast('Cell cleared'); await loadBed(); }
+    else toast('Error clearing');
+  } catch { toast('Failed to save'); }
 }
 
 load();
