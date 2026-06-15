@@ -6,6 +6,7 @@ struct Seed: Identifiable, Codable, Hashable {
     var variety: String = ""
     var supplier: String = ""
     var quantityPackets: Int = 1
+    var useByDate: Date?
 
     var sowingWindows: [SowingWindow] = []
 
@@ -14,6 +15,8 @@ struct Seed: Identifiable, Codable, Hashable {
     var depthCm: Double?
     var heightCm: Double?
     var spreadCm: Double?
+    var germinationTempMinC: Int?
+    var germinationTempMaxC: Int?
     var daysToGermination: ClosedRange<Int>?
     var daysToHarvest: ClosedRange<Int>?
 
@@ -62,11 +65,12 @@ enum SunRequirement: String, Codable, CaseIterable {
 
 extension Seed {
     enum CodingKeys: String, CodingKey {
-        case id, name, variety, supplier, quantityPackets
+        case id, name, variety, supplier, quantityPackets, useByDate
         case sowingWindows
         // Legacy keys — decoded only for migration
         case sowIndoorsWeeksBeforeFrost, sowOutdoorsWeeksFromFrost, transplantWeeksAfterIndoorSow
         case spacingCm, rowSpacingCm, depthCm, heightCm, spreadCm
+        case germinationTempMinC, germinationTempMaxC
         case daysToGerminationMin, daysToGerminationMax
         case daysToHarvestMin, daysToHarvestMax
         case url
@@ -80,6 +84,7 @@ extension Seed {
         variety = try c.decodeIfPresent(String.self, forKey: .variety) ?? ""
         supplier = try c.decodeIfPresent(String.self, forKey: .supplier) ?? ""
         quantityPackets = try c.decodeIfPresent(Int.self, forKey: .quantityPackets) ?? 1
+        useByDate = try c.decodeIfPresent(Date.self, forKey: .useByDate)
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex) ?? "#4CAF50"
 
         // New field
@@ -112,6 +117,8 @@ extension Seed {
         depthCm = try c.decodeIfPresent(Double.self, forKey: .depthCm)
         heightCm = try c.decodeIfPresent(Double.self, forKey: .heightCm)
         spreadCm = try c.decodeIfPresent(Double.self, forKey: .spreadCm)
+        germinationTempMinC = try c.decodeIfPresent(Int.self, forKey: .germinationTempMinC)
+        germinationTempMaxC = try c.decodeIfPresent(Int.self, forKey: .germinationTempMaxC)
         if let lo = try c.decodeIfPresent(Int.self, forKey: .daysToGerminationMin),
            let hi = try c.decodeIfPresent(Int.self, forKey: .daysToGerminationMax) {
             daysToGermination = lo...hi
@@ -135,12 +142,15 @@ extension Seed {
         try c.encode(variety, forKey: .variety)
         try c.encode(supplier, forKey: .supplier)
         try c.encode(quantityPackets, forKey: .quantityPackets)
+        try c.encodeIfPresent(useByDate, forKey: .useByDate)
         try c.encode(sowingWindows, forKey: .sowingWindows)
         try c.encodeIfPresent(spacingCm, forKey: .spacingCm)
         try c.encodeIfPresent(rowSpacingCm, forKey: .rowSpacingCm)
         try c.encodeIfPresent(depthCm, forKey: .depthCm)
         try c.encodeIfPresent(heightCm, forKey: .heightCm)
         try c.encodeIfPresent(spreadCm, forKey: .spreadCm)
+        try c.encodeIfPresent(germinationTempMinC, forKey: .germinationTempMinC)
+        try c.encodeIfPresent(germinationTempMaxC, forKey: .germinationTempMaxC)
         try c.encodeIfPresent(daysToGermination?.lowerBound, forKey: .daysToGerminationMin)
         try c.encodeIfPresent(daysToGermination?.upperBound, forKey: .daysToGerminationMax)
         try c.encodeIfPresent(daysToHarvest?.lowerBound, forKey: .daysToHarvestMin)

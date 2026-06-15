@@ -139,6 +139,27 @@ struct SeedDetailView: View {
                         Stepper("\(seed.quantityPackets)", value: $seed.quantityPackets, in: 0...999)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    LabeledContent("Use by") {
+                        HStack(spacing: 8) {
+                            if seed.useByDate != nil {
+                                DatePicker("", selection: Binding(
+                                    get: { seed.useByDate ?? Date() },
+                                    set: { seed.useByDate = $0 }
+                                ), displayedComponents: .date)
+                                .labelsHidden()
+                                Button { seed.useByDate = nil } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Clear date")
+                            } else {
+                                Button("Set date") { seed.useByDate = Date() }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
                 }
 
                 // Sowing windows
@@ -157,6 +178,7 @@ struct SeedDetailView: View {
                         OptionalDoubleField(label: "Sow depth (cm)", value: $seed.depthCm)
                         OptionalDoubleField(label: "Height (cm)", value: $seed.heightCm)
                         OptionalDoubleField(label: "Spread (cm)", value: $seed.spreadCm)
+                        GerminationTempField(minC: $seed.germinationTempMinC, maxC: $seed.germinationTempMaxC)
                         OptionalRangeField(label: "Days to germination", range: $seed.daysToGermination)
                         OptionalRangeField(label: "Days to harvest", range: $seed.daysToHarvest)
                     }
@@ -439,6 +461,32 @@ struct OptionalRangeField: View {
     func updateRange() {
         if let lo = Int(minText), let hi = Int(maxText), lo <= hi {
             range = lo...hi
+        }
+    }
+}
+
+struct GerminationTempField: View {
+    @Binding var minC: Int?
+    @Binding var maxC: Int?
+    @State private var minText = ""
+    @State private var maxText = ""
+
+    var body: some View {
+        LabeledContent("Germination temp (°C)") {
+            HStack {
+                TextField("—", text: $minText)
+                    .frame(width: 40)
+                    .multilineTextAlignment(.trailing)
+                    .onChange(of: minText) { minC = Int(minText) }
+                Text("–")
+                TextField("—", text: $maxText)
+                    .frame(width: 40)
+                    .onChange(of: maxText) { maxC = Int(maxText) }
+            }
+        }
+        .onAppear {
+            minText = minC.map(String.init) ?? ""
+            maxText = maxC.map(String.init) ?? ""
         }
     }
 }
