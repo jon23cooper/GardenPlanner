@@ -123,12 +123,10 @@ struct SeedDetailView: View {
                 GroupBox("Stock & Supplier") {
                     LabeledContent("Supplier") {
                         TextField("Supplier name", text: $seed.supplier)
-                            .multilineTextAlignment(.trailing)
                     }
                     LabeledContent("Website") {
                         HStack(spacing: 6) {
                             TextField("https://", text: $seed.url)
-                                .multilineTextAlignment(.trailing)
                             if let url = URL(string: seed.url), !seed.url.isEmpty, url.scheme != nil {
                                 Link(destination: url) {
                                     Image(systemName: "arrow.up.right.square")
