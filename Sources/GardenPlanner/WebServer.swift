@@ -281,7 +281,7 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
 .badge{font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--green-lt);color:var(--green-dk)}
 .badge.low{background:#FFF3E0;color:#E65100}.badge.gone{background:#FFEBEE;color:#C62828}
 .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:14px 0 8px}
-#p-beds{margin-left:-14px;margin-right:-14px;padding:0 14px}
+#p-beds{padding:14px}
 .empty{text-align:center;padding:40px 20px;color:var(--text2);font-size:15px}
 .cell{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
 .cell.planted{border-width:2px}
@@ -324,27 +324,27 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
     <div class="card" id="seeds-list"></div>
   </div>
 
-  <div class="panel" id="p-beds">
-    <div class="sec">Garden beds</div>
-    <div class="card" style="margin-bottom:10px">
-      <label for="bed-sel">Bed</label>
-      <select id="bed-sel" onchange="loadBed()"></select>
-      <label for="bed-year">Year</label>
-      <select id="bed-year" onchange="loadBed()"></select>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:12px;color:#999">Pinch or use buttons to zoom</span>
-      <div style="display:flex;gap:6px">
-        <button class="btn2" onclick="adjustZoom(-0.2)" style="padding:6px 14px;font-size:18px;line-height:1">−</button>
-        <button class="btn2" onclick="adjustZoom(0)" style="padding:6px 10px;font-size:12px">Reset</button>
-        <button class="btn2" onclick="adjustZoom(0.2)" style="padding:6px 14px;font-size:18px;line-height:1">+</button>
-      </div>
-    </div>
-    <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch">
-      <div id="bed-grid-inner" style="transform-origin:top left;display:inline-block"></div>
+</div>
+
+<div class="panel" id="p-beds">
+  <div class="sec" style="padding:0 14px">Garden beds</div>
+  <div class="card" style="margin:0 14px 10px">
+    <label for="bed-sel">Bed</label>
+    <select id="bed-sel" onchange="loadBed()"></select>
+    <label for="bed-year">Year</label>
+    <select id="bed-year" onchange="loadBed()"></select>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 14px">
+    <span style="font-size:12px;color:#999">Pinch or use buttons to zoom</span>
+    <div style="display:flex;gap:6px">
+      <button class="btn2" onclick="adjustZoom(-0.2)" style="padding:6px 14px;font-size:18px;line-height:1">−</button>
+      <button class="btn2" onclick="adjustZoom(0)" style="padding:6px 10px;font-size:12px">Reset</button>
+      <button class="btn2" onclick="adjustZoom(0.2)" style="padding:6px 14px;font-size:18px;line-height:1">+</button>
     </div>
   </div>
-
+  <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch;padding:0 14px">
+    <div id="bed-grid-inner" style="transform-origin:top left;display:inline-block"></div>
+  </div>
 </div>
 
 <!-- Seed picker overlay for bed planting -->
