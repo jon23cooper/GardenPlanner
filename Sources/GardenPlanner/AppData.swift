@@ -84,6 +84,9 @@ final class AppData {
 
     func addPlantingRecord(_ record: PlantingRecord) {
         plantingRecords.append(record)
+        if let i = seeds.firstIndex(where: { $0.id == record.seedId }) {
+            seeds[i].quantityPackets = max(0, seeds[i].quantityPackets - record.quantitySown)
+        }
         save()
     }
 
