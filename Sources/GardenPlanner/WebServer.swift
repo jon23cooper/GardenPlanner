@@ -1,12 +1,14 @@
 import Foundation
-import Network
+import Darwin
 
 final class WebServer: @unchecked Sendable {
     var onStateChange: ((Bool) -> Void)?
+    var onError: ((String) -> Void)?
 
     private let port: UInt16
     private weak var appData: AppData?
-    private var listener: NWListener?
+    private var serverFD: Int32 = -1
+    private var acceptRunning = false
 
     init(port: UInt16, appData: AppData) {
         self.port = port
@@ -14,61 +16,97 @@ final class WebServer: @unchecked Sendable {
     }
 
     func start() {
-        guard let nwPort = NWEndpoint.Port(rawValue: port) else { return }
-        do {
-            let params = NWParameters.tcp
-            params.allowLocalEndpointReuse = true
-            let l = try NWListener(using: params, on: nwPort)
-            l.stateUpdateHandler = { [weak self] state in
-                DispatchQueue.main.async { self?.onStateChange?(state == .ready) }
-            }
-            l.newConnectionHandler = { [weak self] conn in self?.handle(conn) }
-            l.start(queue: .global(qos: .userInitiated))
-            listener = l
-        } catch {
-            print("[WebServer] Failed to start on port \(port): \(error)")
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else {
+            notify(error: "socket() failed: \(errnoString())"); return
         }
+        var yes: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))
+
+        var addr = sockaddr_in()
+        addr.sin_len    = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port   = port.bigEndian
+        addr.sin_addr   = in_addr(s_addr: INADDR_ANY)
+
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard bound == 0 else {
+            close(fd)
+            notify(error: "bind() failed on port \(port): \(errnoString()) — is another app using this port?"); return
+        }
+        guard listen(fd, 10) == 0 else {
+            close(fd)
+            notify(error: "listen() failed: \(errnoString())"); return
+        }
+
+        serverFD = fd
+        acceptRunning = true
+        DispatchQueue.main.async { self.onStateChange?(true) }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.acceptLoop() }
     }
 
     func stop() {
-        listener?.cancel()
-        listener = nil
+        acceptRunning = false
+        if serverFD >= 0 { close(serverFD); serverFD = -1 }
         DispatchQueue.main.async { self.onStateChange?(false) }
     }
 
-    // MARK: - Connection
-
-    private func handle(_ connection: NWConnection) {
-        connection.start(queue: .global(qos: .userInitiated))
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, _, error in
-            guard let self, let data, !data.isEmpty, error == nil else { connection.cancel(); return }
-            self.route(raw: String(decoding: data, as: UTF8.self), connection: connection)
+    private func acceptLoop() {
+        while acceptRunning {
+            let clientFD = accept(serverFD, nil, nil)
+            guard clientFD >= 0 else { break }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.handleClient(clientFD)
+            }
         }
     }
 
-    private func route(raw: String, connection: NWConnection) {
-        let lines = raw.components(separatedBy: "\r\n")
-        let parts = (lines.first ?? "").split(separator: " ", maxSplits: 2).map(String.init)
-        guard parts.count >= 2 else { connection.cancel(); return }
+    // MARK: - Request handling
+
+    private func handleClient(_ fd: Int32) {
+        defer { close(fd) }
+        var buf = [UInt8](repeating: 0, count: 32768)
+        let n = read(fd, &buf, buf.count - 1)
+        guard n > 0 else { return }
+
+        let raw = String(bytes: buf.prefix(n), encoding: .utf8) ?? ""
+        let parts = (raw.components(separatedBy: "\r\n").first ?? "")
+            .split(separator: " ", maxSplits: 2).map(String.init)
+        guard parts.count >= 2 else { return }
         let method = parts[0]
         let path = parts[1].components(separatedBy: "?").first ?? parts[1]
         let body: Data = raw.range(of: "\r\n\r\n").map { Data(raw[$0.upperBound...].utf8) } ?? Data()
 
+        let sem = DispatchSemaphore(value: 0)
+        // Use a box so Swift concurrency doesn't flag the cross-thread write
+        final class Box: @unchecked Sendable { var data = Data() }
+        let box = Box()
         DispatchQueue.main.async { [weak self] in
-            guard let self, let appData = self.appData else {
-                self?.respond(503, Data(), "text/plain", to: connection); return
-            }
-            let (status, respBody, ct) = self.dispatch(method: method, path: path, body: body, appData: appData)
-            self.respond(status, respBody, ct, to: connection)
+            defer { sem.signal() }
+            guard let self, let appData = self.appData else { return }
+            let (status, rb, ct) = self.dispatch(method: method, path: path, body: body, appData: appData)
+            box.data = self.buildResponse(status, rb, ct)
         }
+        sem.wait()
+        box.data.withUnsafeBytes { ptr in _ = write(fd, ptr.baseAddress, box.data.count) }
     }
 
-    private func respond(_ status: Int, _ body: Data, _ contentType: String, to connection: NWConnection) {
-        let phrase = [200: "OK", 400: "Bad Request", 404: "Not Found", 503: "Service Unavailable"][status] ?? "Error"
-        let header = "HTTP/1.1 \(status) \(phrase)\r\nContent-Type: \(contentType); charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-        var resp = Data(header.utf8); resp.append(body)
-        connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+    private func buildResponse(_ status: Int, _ body: Data, _ contentType: String) -> Data {
+        let phrase = [200: "OK", 400: "Bad Request", 404: "Not Found"][status] ?? "Error"
+        let hdr = "HTTP/1.1 \(status) \(phrase)\r\nContent-Type: \(contentType); charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
+        var r = Data(hdr.utf8); r.append(body); return r
     }
+
+    private func notify(error: String) {
+        print("[WebServer] \(error)")
+        DispatchQueue.main.async { self.onError?(error) }
+    }
+
+    private func errnoString() -> String { String(cString: strerror(errno)) }
 
     // MARK: - Dispatch (always on main thread)
 

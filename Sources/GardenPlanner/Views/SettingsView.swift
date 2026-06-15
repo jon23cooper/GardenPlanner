@@ -63,7 +63,19 @@ struct SettingsView: View {
                                 .frame(width: 8, height: 8)
                             Text(appData.webServerRunning ? "Running" : "Stopped")
                                 .foregroundStyle(appData.webServerRunning ? .primary : .secondary)
+                            if !appData.webServerRunning {
+                                Button("Retry") { appData.restartWebServer() }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(Color.accentColor)
+                                    .font(.caption)
+                            }
                         }
+                    }
+
+                    if let err = appData.webServerError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
 
                     if appData.webServerRunning {

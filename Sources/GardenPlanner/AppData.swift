@@ -11,6 +11,7 @@ final class AppData {
     var webServerEnabled: Bool = true { didSet { save(); webServerEnabled ? startWebServer() : stopWebServer() } }
     var webServerPort: Int = 8080 { didSet { save(); if webServerEnabled { restartWebServer() } } }
     var webServerRunning: Bool = false
+    var webServerError: String? = nil
 
     private var _webServer: WebServer?
 
@@ -34,8 +35,10 @@ final class AppData {
 
     func startWebServer() {
         _webServer?.stop()
+        webServerError = nil
         let server = WebServer(port: UInt16(clamping: webServerPort), appData: self)
         server.onStateChange = { [weak self] running in self?.webServerRunning = running }
+        server.onError = { [weak self] msg in self?.webServerError = msg }
         server.start()
         _webServer = server
     }
