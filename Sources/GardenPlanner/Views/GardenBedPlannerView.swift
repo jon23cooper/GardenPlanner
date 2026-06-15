@@ -13,7 +13,7 @@ struct GardenBedPlannerView: View {
 
     var body: some View {
         NavigationSplitView {
-            VStack(alignment: .leading, spacing: 0) {
+            VSplitView {
                 List(appData.gardenBeds, selection: $selectedBedId) { bed in
                     Label(bed.name, systemImage: "rectangle.split.3x3")
                         .tag(bed.id)
@@ -32,8 +32,7 @@ struct GardenBedPlannerView: View {
                         }
                     }
                 }
-
-                Divider()
+                .frame(minHeight: 80)
 
                 // Seed palette for dragging
                 VStack(alignment: .leading, spacing: 6) {
@@ -48,7 +47,7 @@ struct GardenBedPlannerView: View {
                         .padding(.bottom, 8)
                     }
                 }
-                .frame(maxHeight: 240)
+                .frame(minHeight: 80)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
