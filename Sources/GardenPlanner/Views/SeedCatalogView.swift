@@ -157,6 +157,7 @@ struct SeedDetailView: View {
                         OptionalDoubleField(label: "Row spacing (cm)", value: $seed.rowSpacingCm)
                         OptionalDoubleField(label: "Sow depth (cm)", value: $seed.depthCm)
                         OptionalDoubleField(label: "Height (cm)", value: $seed.heightCm)
+                        OptionalDoubleField(label: "Spread (cm)", value: $seed.spreadCm)
                         OptionalRangeField(label: "Days to germination", range: $seed.daysToGermination)
                         OptionalRangeField(label: "Days to harvest", range: $seed.daysToHarvest)
                     }

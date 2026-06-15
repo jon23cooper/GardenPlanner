@@ -134,13 +134,25 @@ struct BedGridView: View {
                                 cell: cell,
                                 seed: plantedSeed,
                                 cellSize: cellSize,
+                                squareSizeCm: bed.squareSizeCm,
                                 allSeeds: appData.seeds,
-                                onDrop: { uuidString in
-                                    guard let seedId = UUID(uuidString: uuidString) else { return }
+                                onDrop: { payload in
+                                    // Payload is either "UUID" (from palette) or "UUID|row|col" (from cell)
+                                    let parts = payload.split(separator: "|")
+                                    guard let seedId = UUID(uuidString: String(parts[0])) else { return }
+                                    if parts.count == 3,
+                                       let srcRow = Int(parts[1]),
+                                       let srcCol = Int(parts[2]) {
+                                        let srcPos = GridPosition(row: srcRow, column: srcCol)
+                                        if srcPos != pos {
+                                            appData.clearCell(in: bed.id, at: srcPos, year: year)
+                                        }
+                                    }
                                     appData.plantSeed(seedId, in: bed.id, at: pos, year: year)
                                 },
                                 onClear: { appData.clearCell(in: bed.id, at: pos, year: year) },
-                                onPlant: { seedId in appData.plantSeed(seedId, in: bed.id, at: pos, year: year) }
+                                onPlant: { seedId in appData.plantSeed(seedId, in: bed.id, at: pos, year: year) },
+                                dragPayload: cell.map { "\($0.seedId.uuidString)|\($0.row)|\($0.column)" }
                             )
                         }
                     }
@@ -170,11 +182,18 @@ struct BedCellView: View {
     let cell: BedCell?
     let seed: Seed?
     let cellSize: CGFloat
+    let squareSizeCm: Double
     let allSeeds: [Seed]
     let onDrop: (String) -> Void
     let onClear: () -> Void
     let onPlant: (UUID) -> Void
+    let dragPayload: String?
     @State private var isTargeted = false
+
+    var spreadDiameter: CGFloat? {
+        guard let spread = seed?.spreadCm, squareSizeCm > 0 else { return nil }
+        return CGFloat(spread / squareSizeCm) * cellSize
+    }
 
     var body: some View {
         ZStack {
@@ -186,6 +205,18 @@ struct BedCellView: View {
                 )
 
             if let seed = seed {
+                // Spread circle — may extend beyond cell bounds
+                if let diameter = spreadDiameter {
+                    Circle()
+                        .fill(Color(hex: seed.colorHex).opacity(0.12))
+                        .overlay(
+                            Circle()
+                                .strokeBorder(Color(hex: seed.colorHex).opacity(0.35), lineWidth: 1)
+                        )
+                        .frame(width: diameter, height: diameter)
+                        .allowsHitTesting(false)
+                }
+
                 VStack(spacing: 2) {
                     Circle()
                         .fill(Color(hex: seed.colorHex))
@@ -200,9 +231,10 @@ struct BedCellView: View {
             }
         }
         .frame(width: cellSize, height: cellSize)
+        .modifier(DraggableIfNeeded(payload: seed != nil ? dragPayload : nil))
         .dropDestination(for: String.self) { items, _ in
-            guard let uuidString = items.first else { return false }
-            onDrop(uuidString)
+            guard let payload = items.first else { return false }
+            onDrop(payload)
             return true
         } isTargeted: { isTargeted = $0 }
         .onTapGesture(count: 2) {
@@ -237,8 +269,8 @@ struct AddBedView: View {
     @State private var lengthCm = 240.0
     @State private var squareSizeCm = 30.0
 
-    var columns: Int { max(1, Int((widthCm / squareSizeCm).rounded())) }
-    var rows: Int    { max(1, Int((lengthCm / squareSizeCm).rounded())) }
+    var columns: Int { max(1, Int((lengthCm / squareSizeCm).rounded())) }
+    var rows: Int    { max(1, Int((widthCm / squareSizeCm).rounded())) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -307,3 +339,13 @@ struct AddBedView: View {
     }
 }
 
+struct DraggableIfNeeded: ViewModifier {
+    let payload: String?
+    func body(content: Content) -> some View {
+        if let payload {
+            content.draggable(payload).cursor(.openHand)
+        } else {
+            content
+        }
+    }
+}
