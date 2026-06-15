@@ -339,7 +339,7 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
         <button class="btn2" onclick="adjustZoom(0.2)" style="padding:6px 14px;font-size:18px;line-height:1">+</button>
       </div>
     </div>
-    <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch;touch-action:none">
+    <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch">
       <div id="bed-grid-inner" style="transform-origin:top left;display:inline-block"></div>
     </div>
   </div>
