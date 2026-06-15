@@ -158,6 +158,7 @@ struct SeedDetailView: View {
                                     .buttonStyle(.plain)
                                     .foregroundStyle(Color.accentColor)
                             }
+                            Spacer()
                         }
                     }
                 }
