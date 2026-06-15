@@ -250,7 +250,7 @@ final class WebServer: @unchecked Sendable {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=0.25, maximum-scale=5">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Garden Planner</title>
 <style>
@@ -331,7 +331,17 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
       <label for="bed-year">Year</label>
       <select id="bed-year" onchange="loadBed()"></select>
     </div>
-    <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;color:#999">Pinch or use buttons to zoom</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn2" onclick="adjustZoom(-0.2)" style="padding:6px 14px;font-size:18px;line-height:1">−</button>
+        <button class="btn2" onclick="adjustZoom(0)" style="padding:6px 10px;font-size:12px">Reset</button>
+        <button class="btn2" onclick="adjustZoom(0.2)" style="padding:6px 14px;font-size:18px;line-height:1">+</button>
+      </div>
+    </div>
+    <div id="bed-grid-wrap" style="overflow:auto;-webkit-overflow-scrolling:touch;touch-action:none">
+      <div id="bed-grid-inner" style="transform-origin:top left;display:inline-block"></div>
+    </div>
   </div>
 
 </div>
@@ -516,7 +526,7 @@ async function loadBed() {
 }
 
 function renderBedGrid() {
-  const wrap = document.getElementById('bed-grid-wrap');
+  const wrap = document.getElementById('bed-grid-inner');
   if (!bedData || bedData.rows === undefined) { wrap.innerHTML='<div class="empty">Select a bed above</div>'; return; }
 
   // Index cells by row,col
@@ -595,6 +605,42 @@ async function clearBedCell(bedId, row, col, year) {
     else toast('Error clearing');
   } catch { toast('Failed to save'); }
 }
+
+// ---- Bed grid zoom ----
+
+let bedScale = 1.0;
+
+function applyScale() {
+  const inner = document.getElementById('bed-grid-inner');
+  if (inner) {
+    inner.style.transform = `scale(${bedScale})`;
+    // Shrink wrapper height to match scaled content so page doesn't leave dead space
+    const wrap = document.getElementById('bed-grid-wrap');
+    if (wrap) wrap.style.height = (inner.scrollHeight * bedScale + 16) + 'px';
+  }
+}
+
+function adjustZoom(delta) {
+  if (delta === 0) { bedScale = 1.0; }
+  else { bedScale = Math.min(3, Math.max(0.2, bedScale + delta)); }
+  applyScale();
+}
+
+(function(){
+  let startDist = 0, startScale = 1;
+  function dist(t){ const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy); }
+  const inGrid = e => { const w=document.getElementById('bed-grid-wrap'); return w&&w.contains(e.target); };
+  document.addEventListener('touchstart', e=>{
+    if(!inGrid(e)||e.touches.length!==2) return;
+    startDist=dist(e.touches); startScale=bedScale; e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchmove', e=>{
+    if(!inGrid(e)||e.touches.length!==2) return;
+    e.preventDefault();
+    bedScale=Math.min(3,Math.max(0.2,startScale*dist(e.touches)/startDist));
+    applyScale();
+  },{passive:false});
+})();
 
 load();
 </script>
