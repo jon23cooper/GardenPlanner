@@ -136,8 +136,13 @@ struct SeedDetailView: View {
                         }
                     }
                     LabeledContent("Seeds in stock") {
-                        Stepper("\(seed.quantityPackets)", value: $seed.quantityPackets, in: 0...999)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 4) {
+                            TextField("0", value: $seed.quantityPackets, format: .number)
+                                .frame(width: 50)
+                            Stepper("", value: $seed.quantityPackets, in: 0...999)
+                                .labelsHidden()
+                            Spacer()
+                        }
                     }
                     LabeledContent("Use by") {
                         HStack(spacing: 8) {
