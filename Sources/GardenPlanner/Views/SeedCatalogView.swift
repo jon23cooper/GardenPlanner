@@ -135,8 +135,9 @@ struct SeedDetailView: View {
                             }
                         }
                     }
-                    LabeledContent("Packets in stock") {
+                    LabeledContent("Seeds in stock") {
                         Stepper("\(seed.quantityPackets)", value: $seed.quantityPackets, in: 0...999)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
