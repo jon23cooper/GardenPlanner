@@ -46,21 +46,28 @@ struct PlantingLogView: View {
 
             if filteredRecords.isEmpty {
                 ContentUnavailableView("No Records", systemImage: "list.clipboard", description: Text("No planting records for \(String(filterYear))."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 GeometryReader { geo in
                     ScrollView([.vertical, .horizontal]) {
-                        PlantingTimelineGrid(
-                            seedTimelines: seedTimelines,
-                            year: filterYear,
-                            nameColumnWidth: $nameColumnWidth,
-                            availableWidth: geo.size.width,
-                            selectedRecord: $selectedRecord
-                        )
-                        .padding(16)
+                        VStack(alignment: .leading, spacing: 0) {
+                            PlantingTimelineGrid(
+                                seedTimelines: seedTimelines,
+                                year: filterYear,
+                                nameColumnWidth: $nameColumnWidth,
+                                availableWidth: geo.size.width,
+                                selectedRecord: $selectedRecord
+                            )
+                            .padding(16)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Planting Log")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
