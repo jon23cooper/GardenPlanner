@@ -5,6 +5,7 @@ struct PlantingLogView: View {
     @State private var selectedRecord: PlantingRecord?
     @State private var showingAddSheet = false
     @State private var filterYear: Int = Calendar.current.component(.year, from: Date())
+    @State private var nameColumnWidth: CGFloat = 160
 
     var years: [Int] {
         let recordYears = Set(appData.plantingRecords.map { $0.year })
@@ -13,52 +14,89 @@ struct PlantingLogView: View {
     }
 
     var filteredRecords: [PlantingRecord] {
-        appData.plantingRecords
-            .filter { $0.year == filterYear }
-            .sorted { $0.dateSown > $1.dateSown }
+        appData.plantingRecords.filter { $0.year == filterYear }
+    }
+
+    struct SeedTimeline: Identifiable {
+        let seed: Seed
+        let records: [PlantingRecord]
+        var id: UUID { seed.id }
+    }
+
+    var seedTimelines: [SeedTimeline] {
+        let grouped = Dictionary(grouping: filteredRecords) { $0.seedId }
+        return grouped.compactMap { seedId, records -> SeedTimeline? in
+            guard let seed = appData.seed(id: seedId) else { return nil }
+            return SeedTimeline(seed: seed, records: records.sorted { $0.dateSown < $1.dateSown })
+        }
+        .sorted { $0.seed.displayName < $1.seed.displayName }
     }
 
     var body: some View {
-        NavigationSplitView {
-            VStack(spacing: 0) {
-                // Year filter
-                Picker("Year", selection: $filterYear) {
-                    ForEach(years, id: \.self) { Text(String($0)).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(8)
+        VStack(spacing: 0) {
+            // Year filter
+            Picker("Year", selection: $filterYear) {
+                ForEach(years, id: \.self) { Text(String($0)).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(8)
+            .frame(maxWidth: 400)
 
-                if filteredRecords.isEmpty {
-                    ContentUnavailableView("No Records", systemImage: "list.clipboard", description: Text("No planting records for \(String(filterYear))."))
-                } else {
-                    List(filteredRecords, selection: $selectedRecord) { record in
-                        PlantingRecordRow(record: record)
-                            .tag(record)
-                            .contextMenu {
-                                Button("Delete", role: .destructive) {
-                                    appData.deletePlantingRecord(id: record.id)
-                                    if selectedRecord?.id == record.id { selectedRecord = nil }
-                                }
-                            }
+            Divider()
+
+            if filteredRecords.isEmpty {
+                ContentUnavailableView("No Records", systemImage: "list.clipboard", description: Text("No planting records for \(String(filterYear))."))
+            } else {
+                GeometryReader { geo in
+                    ScrollView([.vertical, .horizontal]) {
+                        PlantingTimelineGrid(
+                            seedTimelines: seedTimelines,
+                            year: filterYear,
+                            nameColumnWidth: $nameColumnWidth,
+                            availableWidth: geo.size.width,
+                            selectedRecord: $selectedRecord
+                        )
+                        .padding(16)
                     }
                 }
             }
-            .navigationTitle("Planting Log")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showingAddSheet = true } label: {
-                        Label("Log Planting", systemImage: "plus")
-                    }
-                    .disabled(appData.seeds.isEmpty)
+        }
+        .navigationTitle("Planting Log")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showingAddSheet = true } label: {
+                    Label("Log Planting", systemImage: "plus")
                 }
+                .disabled(appData.seeds.isEmpty)
             }
-        } detail: {
+        }
+        .inspector(isPresented: .constant(selectedRecord != nil)) {
             if let record = selectedRecord,
                let idx = appData.plantingRecords.firstIndex(where: { $0.id == record.id }) {
                 @Bindable var bindableData = appData
-                PlantingRecordDetailView(record: $bindableData.plantingRecords[idx])
+                VStack(spacing: 0) {
+                    HStack {
+                        Spacer()
+                        Button { selectedRecord = nil } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding([.top, .trailing], 8)
+                    PlantingRecordDetailView(record: $bindableData.plantingRecords[idx])
+                    Divider()
+                    HStack {
+                        Spacer()
+                        Button("Delete Record", role: .destructive) {
+                            appData.deletePlantingRecord(id: record.id)
+                            selectedRecord = nil
+                        }
+                    }
+                    .padding()
+                }
             } else {
-                ContentUnavailableView("Select a Record", systemImage: "list.clipboard", description: Text("Choose a record to view or edit details."))
+                EmptyView()
             }
         }
         .sheet(isPresented: $showingAddSheet) {
@@ -71,50 +109,132 @@ struct PlantingLogView: View {
     }
 }
 
-struct PlantingRecordRow: View {
-    @Environment(AppData.self) private var appData
-    let record: PlantingRecord
+// MARK: - Planting timeline grid
 
-    var locationName: String {
-        switch record.location {
-        case .bed(let id): return appData.gardenBeds.first { $0.id == id }?.name ?? "Unknown bed"
-        case .custom(let s): return s
-        }
+struct PlantingTimelineGrid: View {
+    let seedTimelines: [PlantingLogView.SeedTimeline]
+    let year: Int
+    @Binding var nameColumnWidth: CGFloat
+    let availableWidth: CGFloat
+    @Binding var selectedRecord: PlantingRecord?
+    @Environment(AppData.self) private var appData
+
+    private let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+    let rowH: CGFloat = 30
+    let gridPadding: CGFloat = 32
+
+    var trackWidth: CGFloat {
+        max(300, availableWidth - nameColumnWidth - gridPadding)
+    }
+
+    func monthStartFraction(_ month: Int) -> CGFloat {
+        let cal = Calendar.current
+        let monthStart = cal.date(from: DateComponents(year: year, month: month, day: 1))!
+        let yearStart = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
+        let yearEnd = cal.date(from: DateComponents(year: year + 1, month: 1, day: 1))!
+        let totalDays = cal.dateComponents([.day], from: yearStart, to: yearEnd).day ?? 365
+        let daysIn = cal.dateComponents([.day], from: yearStart, to: monthStart).day ?? 0
+        return CGFloat(daysIn) / CGFloat(totalDays)
+    }
+
+    func xPosition(for date: Date) -> CGFloat {
+        let cal = Calendar.current
+        let yearStart = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
+        let yearEnd = cal.date(from: DateComponents(year: year + 1, month: 1, day: 1))!
+        let totalDays = cal.dateComponents([.day], from: yearStart, to: yearEnd).day ?? 365
+        let clamped = min(max(date, yearStart), yearEnd)
+        let dayOffset = cal.dateComponents([.day], from: yearStart, to: clamped).day ?? 0
+        return CGFloat(dayOffset) / CGFloat(totalDays) * trackWidth
     }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(appData.seed(id: record.seedId)?.displayName ?? "Unknown Seed")
-                    .fontWeight(.medium)
-                HStack(spacing: 6) {
-                    Text(record.dateSown, format: .dateTime.day().month())
-                    Text("·")
-                    Text(locationName)
+        VStack(alignment: .leading, spacing: 0) {
+            // Header: name column + month ticks
+            HStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Text("Seed")
+                        .font(.caption).fontWeight(.semibold)
+                        .frame(width: nameColumnWidth - 8, alignment: .leading)
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 3, height: 16)
+                        .cornerRadius(1.5)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { val in
+                                    nameColumnWidth = max(80, nameColumnWidth + val.translation.width)
+                                }
+                        )
+                        .cursor(.resizeLeftRight)
+                        .padding(.trailing, 5)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            outcomeTag(record.outcome)
-        }
-    }
+                .frame(width: nameColumnWidth)
 
-    func outcomeTag(_ outcome: Outcome) -> some View {
-        let (color, label): (Color, String) = {
-            switch outcome {
-            case .ongoing: return (.blue, "Ongoing")
-            case .success: return (.green, "Success")
-            case .partialSuccess: return (.orange, "Partial")
-            case .failure: return (.red, "Failed")
+                ZStack(alignment: .topLeading) {
+                    ForEach(1...12, id: \.self) { m in
+                        Text(months[m - 1])
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .offset(x: monthStartFraction(m) * trackWidth + 2)
+                    }
+                }
+                .frame(width: trackWidth, height: 16, alignment: .topLeading)
             }
-        }()
-        return Text(label)
-            .font(.caption2)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
+            .padding(.bottom, 4)
+
+            Divider()
+
+            ForEach(seedTimelines) { st in
+                HStack(spacing: 0) {
+                    Text(st.seed.displayName)
+                        .font(.callout).lineLimit(1)
+                        .frame(width: nameColumnWidth, alignment: .leading)
+
+                    ZStack(alignment: .leading) {
+                        // Track background with month ticks
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.primary.opacity(0.05))
+                            .frame(width: trackWidth, height: rowH - 10)
+
+                        ForEach(2...12, id: \.self) { m in
+                            Rectangle()
+                                .fill(Color.primary.opacity(0.08))
+                                .frame(width: 1, height: rowH - 10)
+                                .offset(x: monthStartFraction(m) * trackWidth)
+                        }
+
+                        // Sowing markers
+                        ForEach(st.records) { record in
+                            Circle()
+                                .fill(Color(hex: st.seed.colorHex))
+                                .overlay(Circle().strokeBorder(.white, lineWidth: 1))
+                                .frame(width: 12, height: 12)
+                                .shadow(radius: selectedRecord?.id == record.id ? 0 : 1)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.accentColor, lineWidth: selectedRecord?.id == record.id ? 2 : 0)
+                                        .frame(width: 16, height: 16)
+                                )
+                                .offset(x: xPosition(for: record.dateSown) - 6)
+                                .help("\(record.dateSown.formatted(date: .abbreviated, time: .omitted)) · \(record.quantitySown) sown")
+                                .onTapGesture { selectedRecord = record }
+                                .contextMenu {
+                                    Button("Delete", role: .destructive) {
+                                        appData.deletePlantingRecord(id: record.id)
+                                        if selectedRecord?.id == record.id { selectedRecord = nil }
+                                    }
+                                }
+                        }
+                    }
+                    .frame(width: trackWidth, height: rowH, alignment: .leading)
+                }
+                .padding(.vertical, 2)
+
+                if st.id != seedTimelines.last?.id {
+                    Divider().opacity(0.4)
+                }
+            }
+        }
     }
 }
 
