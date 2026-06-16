@@ -555,7 +555,7 @@ function renderBedGrid() {
           circle = `<div class="spread-circle" style="width:${diameter}px;height:${diameter}px;background:${bg}1F;border:1px solid ${bg}59"></div>`;
         }
         html+=`<div class="cell planted" style="background:${bg}22;border-color:${bg}" onclick="tapPlanted('${bedData._bedId}',${r},${c},${bedData._year},'${esc(cell.seedName||'')}')">
-          <span class="cell-coord">${c+1},${r+1}</span>
+          <span class="cell-coord">${Math.round(c*bedData.squareSizeCm)},${Math.round(r*bedData.squareSizeCm)}</span>
           ${circle}
           <div class="cell-content">
             <span class="chip" style="background:${bg};width:8px;height:8px;border-radius:50%;display:block;margin-bottom:2px"></span>
@@ -564,7 +564,7 @@ function renderBedGrid() {
         </div>`;
       } else {
         html+=`<div class="cell" style="background:#f8f8f8" onclick="tapEmpty('${bedData._bedId}',${r},${c},${bedData._year})">
-          <span class="cell-coord">${c+1},${r+1}</span>
+          <span class="cell-coord">${Math.round(c*bedData.squareSizeCm)},${Math.round(r*bedData.squareSizeCm)}</span>
           <span style="color:#ccc;font-size:18px">+</span>
         </div>`;
       }
