@@ -200,8 +200,8 @@ final class WebServer: @unchecked Sendable {
 
     private func apiBedData(_ body: Data, _ appData: AppData) -> (Int, Data, String) {
         struct Req: Decodable { var bedId: String; var year: Int }
-        struct CellOut: Encodable { var row, col: Int; var seedId: String?; var seedName: String?; var colorHex: String? }
-        struct Out: Encodable { var rows, columns: Int; var cells: [CellOut] }
+        struct CellOut: Encodable { var row, col: Int; var seedId: String?; var seedName: String?; var colorHex: String?; var spreadCm: Double? }
+        struct Out: Encodable { var rows, columns: Int; var squareSizeCm: Double; var cells: [CellOut] }
         guard let req = try? JSONDecoder().decode(Req.self, from: body),
               let bed = appData.gardenBeds.first(where: { $0.id.uuidString == req.bedId }) else {
             return (400, Data(#"{"error":"bed not found"}"#.utf8), "application/json")
@@ -211,10 +211,10 @@ final class WebServer: @unchecked Sendable {
             for col in 0..<bed.columns {
                 let bedCell = bed.cells.first { $0.row == row && $0.column == col && $0.year == req.year }
                 let seed = bedCell.flatMap { appData.seed(id: $0.seedId) }
-                cells.append(CellOut(row: row, col: col, seedId: seed?.id.uuidString, seedName: seed?.displayName, colorHex: seed?.colorHex))
+                cells.append(CellOut(row: row, col: col, seedId: seed?.id.uuidString, seedName: seed?.displayName, colorHex: seed?.colorHex, spreadCm: seed?.spreadCm))
             }
         }
-        let out = Out(rows: bed.rows, columns: bed.columns, cells: cells)
+        let out = Out(rows: bed.rows, columns: bed.columns, squareSizeCm: bed.squareSizeCm, cells: cells)
         return (200, (try? JSONEncoder().encode(out)) ?? Data(), "application/json")
     }
 
@@ -283,10 +283,12 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
 .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:14px 0 8px}
 #p-beds{padding:14px}
 .empty{text-align:center;padding:40px 20px;color:var(--text2);font-size:15px}
-.cell{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.cell{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;position:relative;overflow:visible}
 .cell.planted{border-width:2px}
 .cell:active{opacity:.7}
-.grid-row{display:flex;gap:3px;margin-bottom:3px}
+.cell-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.spread-circle{position:absolute;top:50%;left:50%;border-radius:50%;transform:translate(-50%,-50%);z-index:1;pointer-events:none}
+.grid-row{display:flex;gap:3px;margin-bottom:3px;position:relative}
 .toast{position:fixed;bottom:calc(var(--tabs) + 14px);left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;z-index:100;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
 .toast.on{opacity:1}
 </style>
@@ -546,9 +548,17 @@ function renderBedGrid() {
       const cell = cellMap[r+','+c];
       if(cell && cell.seedName){
         const bg = cell.colorHex||'#4CAF50';
+        let circle = '';
+        if(cell.spreadCm && bedData.squareSizeCm){
+          const diameter = (cell.spreadCm / bedData.squareSizeCm) * 52;
+          circle = `<div class="spread-circle" style="width:${diameter}px;height:${diameter}px;background:${bg}1F;border:1px solid ${bg}59"></div>`;
+        }
         html+=`<div class="cell planted" style="background:${bg}22;border-color:${bg}" onclick="tapPlanted('${bedData._bedId}',${r},${c},${bedData._year},'${esc(cell.seedName||'')}')">
-          <span class="chip" style="background:${bg};width:8px;height:8px;border-radius:50%;display:block;margin-bottom:2px"></span>
-          <span style="color:#333;line-height:1.1">${esc(cell.seedName)}</span>
+          ${circle}
+          <div class="cell-content">
+            <span class="chip" style="background:${bg};width:8px;height:8px;border-radius:50%;display:block;margin-bottom:2px"></span>
+            <span style="color:#333;line-height:1.1">${esc(cell.seedName)}</span>
+          </div>
         </div>`;
       } else {
         html+=`<div class="cell" style="background:#f8f8f8" onclick="tapEmpty('${bedData._bedId}',${r},${c},${bedData._year})">
