@@ -103,6 +103,7 @@ struct BedGridView: View {
 
     let baseCellSize: CGFloat = 48
     @State private var zoomScale: CGFloat = 1.0
+    @State private var scrollZoomMonitor: Any?
 
     var cellSize: CGFloat { baseCellSize * zoomScale }
 
@@ -192,13 +193,27 @@ struct BedGridView: View {
                 Text("·")
                 Label("Double-click to clear", systemImage: "xmark")
                 Text("·")
-                Label("Pinch or use toolbar to zoom", systemImage: "magnifyingglass")
+                Label("Pinch, ⌘-scroll, or use toolbar to zoom", systemImage: "magnifyingglass")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(8)
             .frame(maxWidth: .infinity)
             .background(.bar)
+        }
+        .onAppear {
+            scrollZoomMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                guard event.modifierFlags.contains(.command) else { return event }
+                let delta = event.scrollingDeltaY
+                zoomScale = min(2.5, max(0.4, zoomScale * (1 + delta * 0.003)))
+                return nil
+            }
+        }
+        .onDisappear {
+            if let monitor = scrollZoomMonitor {
+                NSEvent.removeMonitor(monitor)
+                scrollZoomMonitor = nil
+            }
         }
     }
 }
