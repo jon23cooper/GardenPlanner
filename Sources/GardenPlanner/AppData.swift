@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import IOKit.pwr_mgt
 
 @Observable
 final class AppData {
@@ -10,10 +11,13 @@ final class AppData {
 
     var webServerEnabled: Bool = true { didSet { save(); webServerEnabled ? startWebServer() : stopWebServer() } }
     var webServerPort: Int = 8080 { didSet { save(); if webServerEnabled { restartWebServer() } } }
-    var webServerRunning: Bool = false
+    var webServerRunning: Bool = false { didSet { updateSleepAssertion() } }
     var webServerError: String? = nil
+    var keepAwakeWhileServing: Bool = true { didSet { save(); updateSleepAssertion() } }
 
     private var _webServer: WebServer?
+    private var sleepAssertionID: IOPMAssertionID = 0
+    private var sleepAssertionActive = false
 
     // Frost dates stored as month+day only (year is ignored)
     var lastFrostMonth: Int = 4 { didSet { save() } }
@@ -52,6 +56,28 @@ final class AppData {
     func restartWebServer() {
         stopWebServer()
         startWebServer()
+    }
+
+    /// Prevents the Mac from idle-sleeping while the mobile web server needs to stay reachable.
+    /// Does not prevent display sleep or lid-closed (clamshell) sleep — only system idle sleep.
+    private func updateSleepAssertion() {
+        let shouldHold = webServerRunning && keepAwakeWhileServing
+        if shouldHold && !sleepAssertionActive {
+            var id: IOPMAssertionID = 0
+            let result = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypeNoIdleSleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "GardenPlanner mobile web server is active" as CFString,
+                &id
+            )
+            if result == kIOReturnSuccess {
+                sleepAssertionID = id
+                sleepAssertionActive = true
+            }
+        } else if !shouldHold && sleepAssertionActive {
+            IOPMAssertionRelease(sleepAssertionID)
+            sleepAssertionActive = false
+        }
     }
 
     // MARK: - Frost date helpers
@@ -178,6 +204,7 @@ final class AppData {
         var customLocations: [String]?
         var webServerEnabled: Bool?
         var webServerPort: Int?
+        var keepAwakeWhileServing: Bool?
     }
 
     func save() {
@@ -191,7 +218,8 @@ final class AppData {
             firstFrostDay: firstFrostDay,
             customLocations: customLocations,
             webServerEnabled: webServerEnabled,
-            webServerPort: webServerPort
+            webServerPort: webServerPort,
+            keepAwakeWhileServing: keepAwakeWhileServing
         )
         let url = dataDir.appendingPathComponent("garden.json")
         if let data = try? JSONEncoder().encode(file) {
@@ -213,5 +241,6 @@ final class AppData {
         customLocations = file.customLocations ?? ["Indoors", "Outdoors", "Greenhouse"]
         webServerEnabled = file.webServerEnabled ?? true
         webServerPort = file.webServerPort ?? 8080
+        keepAwakeWhileServing = file.keepAwakeWhileServing ?? true
     }
 }

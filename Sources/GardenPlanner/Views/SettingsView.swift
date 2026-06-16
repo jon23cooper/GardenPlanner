@@ -50,6 +50,11 @@ struct SettingsView: View {
                 Toggle("Enable web server", isOn: $data.webServerEnabled)
 
                 if appData.webServerEnabled {
+                    Toggle("Keep Mac awake while serving", isOn: $data.keepAwakeWhileServing)
+                    Text("Prevents the Mac from idle-sleeping so your phone stays connected. Doesn't stop the display sleeping, and won't help if the lid is closed — for that, also check System Settings → Lock Screen / Battery so the Mac doesn't sleep on power.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     LabeledContent("Port") {
                         TextField("8080", value: $data.webServerPort, format: .number)
                             .frame(width: 70)
