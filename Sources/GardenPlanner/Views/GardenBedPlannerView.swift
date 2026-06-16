@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 
 struct GardenBedPlannerView: View {
@@ -103,12 +104,46 @@ struct BedGridView: View {
 
     let baseCellSize: CGFloat = 48
     @State private var zoomScale: CGFloat = 1.0
-    @State private var scrollZoomMonitor: Any?
 
     var cellSize: CGFloat { baseCellSize * zoomScale }
 
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
+        ZoomableScrollView(zoomScale: $zoomScale, minZoom: 0.4, maxZoom: 2.5) {
+            gridContent
+        }
+        .navigationTitle(bed.name)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button { zoomScale = max(0.4, zoomScale - 0.1) } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .help("Zoom out")
+                Button("Reset") { zoomScale = 1.0 }
+                Button { zoomScale = min(2.5, zoomScale + 0.1) } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .help("Zoom in")
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 16) {
+                Label("Right-click a cell to plant a seed", systemImage: "computermouse")
+                Text("·")
+                Label("Or drag from the seed list on the left", systemImage: "arrow.left")
+                Text("·")
+                Label("Double-click to clear", systemImage: "xmark")
+                Text("·")
+                Label("Pinch or ⌘-scroll over the grid to zoom", systemImage: "magnifyingglass")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(8)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
+        }
+    }
+
+    var gridContent: some View {
             VStack(alignment: .leading, spacing: 0) {
                 // Column header
                 HStack(spacing: 1) {
@@ -164,55 +199,95 @@ struct BedGridView: View {
                 }
             }
             .padding()
+    }
+}
+
+// MARK: - Cursor-anchored zoomable scroll view
+
+private class ZoomTrackingScrollView: NSScrollView {
+    var onZoom: ((CGFloat, NSPoint) -> Void)?
+
+    override func scrollWheel(with event: NSEvent) {
+        if event.modifierFlags.contains(.command) {
+            let location = convert(event.locationInWindow, from: nil)
+            onZoom?(event.scrollingDeltaY * 0.003, location)
+        } else {
+            super.scrollWheel(with: event)
         }
-        .simultaneousGesture(
-            MagnificationGesture()
-                .onChanged { value in
-                    zoomScale = min(2.5, max(0.4, zoomScale * value))
-                }
-        )
-        .navigationTitle(bed.name)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button { zoomScale = max(0.4, zoomScale - 0.1) } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                .help("Zoom out")
-                Button("Reset") { zoomScale = 1.0 }
-                Button { zoomScale = min(2.5, zoomScale + 0.1) } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .help("Zoom in")
-            }
+    }
+
+    override func magnify(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        onZoom?(event.magnification, location)
+    }
+}
+
+struct ZoomableScrollView<Content: View>: NSViewRepresentable {
+    @Binding var zoomScale: CGFloat
+    let minZoom: CGFloat
+    let maxZoom: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = ZoomTrackingScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+
+        let hosting = NSHostingView(rootView: content())
+        scrollView.documentView = hosting
+        hosting.frame.size = hosting.fittingSize
+        context.coordinator.hostingView = hosting
+        context.coordinator.scrollView = scrollView
+
+        scrollView.onZoom = { [coordinator = context.coordinator] delta, location in
+            coordinator.handleZoom(delta: delta, locationInView: location)
         }
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 16) {
-                Label("Right-click a cell to plant a seed", systemImage: "computermouse")
-                Text("·")
-                Label("Or drag from the seed list on the left", systemImage: "arrow.left")
-                Text("·")
-                Label("Double-click to clear", systemImage: "xmark")
-                Text("·")
-                Label("Pinch, ⌘-scroll, or use toolbar to zoom", systemImage: "magnifyingglass")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(8)
-            .frame(maxWidth: .infinity)
-            .background(.bar)
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let hosting = context.coordinator.hostingView else { return }
+        hosting.rootView = content()
+        hosting.frame.size = hosting.fittingSize
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(zoomScale: $zoomScale, minZoom: minZoom, maxZoom: maxZoom)
+    }
+
+    final class Coordinator {
+        @Binding var zoomScale: CGFloat
+        let minZoom: CGFloat
+        let maxZoom: CGFloat
+        weak var hostingView: NSHostingView<Content>?
+        weak var scrollView: NSScrollView?
+
+        init(zoomScale: Binding<CGFloat>, minZoom: CGFloat, maxZoom: CGFloat) {
+            _zoomScale = zoomScale
+            self.minZoom = minZoom
+            self.maxZoom = maxZoom
         }
-        .onAppear {
-            scrollZoomMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
-                guard event.modifierFlags.contains(.command) else { return event }
-                let delta = event.scrollingDeltaY
-                zoomScale = min(2.5, max(0.4, zoomScale * (1 + delta * 0.003)))
-                return nil
-            }
-        }
-        .onDisappear {
-            if let monitor = scrollZoomMonitor {
-                NSEvent.removeMonitor(monitor)
-                scrollZoomMonitor = nil
+
+        @MainActor func handleZoom(delta: CGFloat, locationInView: NSPoint) {
+            guard let scrollView = scrollView else { return }
+            let oldScale = zoomScale
+            let newScale = min(maxZoom, max(minZoom, oldScale * (1 + delta)))
+            guard newScale != oldScale else { return }
+
+            let clipView = scrollView.contentView
+            let originBefore = clipView.bounds.origin
+            let pointBefore = NSPoint(x: originBefore.x + locationInView.x, y: originBefore.y + locationInView.y)
+            let unscaledPoint = NSPoint(x: pointBefore.x / oldScale, y: pointBefore.y / oldScale)
+
+            zoomScale = newScale
+
+            DispatchQueue.main.async {
+                let pointAfter = NSPoint(x: unscaledPoint.x * newScale, y: unscaledPoint.y * newScale)
+                let newOrigin = NSPoint(x: pointAfter.x - locationInView.x, y: pointAfter.y - locationInView.y)
+                clipView.scroll(to: newOrigin)
+                scrollView.reflectScrolledClipView(clipView)
             }
         }
     }
