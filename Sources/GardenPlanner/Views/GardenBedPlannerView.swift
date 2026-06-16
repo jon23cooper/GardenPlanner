@@ -134,6 +134,8 @@ struct BedGridView: View {
                                 seed: plantedSeed,
                                 cellSize: cellSize,
                                 squareSizeCm: bed.squareSizeCm,
+                                row: row,
+                                column: col,
                                 allSeeds: appData.seeds,
                                 onDrop: { payload in
                                     // Payload is either "UUID" (from palette) or "UUID|row|col" (from cell)
@@ -182,6 +184,8 @@ struct BedCellView: View {
     let seed: Seed?
     let cellSize: CGFloat
     let squareSizeCm: Double
+    let row: Int
+    let column: Int
     let allSeeds: [Seed]
     let onDrop: (String) -> Void
     let onClear: () -> Void
@@ -228,6 +232,19 @@ struct BedCellView: View {
                 }
                 .padding(4)
             }
+
+            VStack {
+                HStack {
+                    Text("\(Int((Double(column) * squareSizeCm).rounded())),\(Int((Double(row) * squareSizeCm).rounded()))")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 2)
+                        .padding(.top, 1)
+                    Spacer()
+                }
+                Spacer()
+            }
+            .allowsHitTesting(false)
         }
         .frame(width: cellSize, height: cellSize)
         .modifier(DraggableIfNeeded(payload: seed != nil ? dragPayload : nil))
