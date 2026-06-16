@@ -643,6 +643,7 @@ function adjustZoom(delta) {
 (function(){
   let startDist = 0, startScale = 1;
   function dist(t){ const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy); }
+  function mid(t){ return {x:(t[0].clientX+t[1].clientX)/2, y:(t[0].clientY+t[1].clientY)/2}; }
   const inGrid = e => { const w=document.getElementById('bed-grid-wrap'); return w&&w.contains(e.target); };
   window.addEventListener('resize', () => { if (bedData) { renderBedGrid(); applyScale(); } });
 
@@ -653,8 +654,16 @@ function adjustZoom(delta) {
   document.addEventListener('touchmove', e=>{
     if(!inGrid(e)||e.touches.length!==2) return;
     e.preventDefault();
+    const wrap = document.getElementById('bed-grid-wrap');
+    const wrapRect = wrap.getBoundingClientRect();
+    const m = mid(e.touches);
+    const oldScale = bedScale;
+    const contentX = (wrap.scrollLeft + m.x - wrapRect.left) / oldScale;
+    const contentY = (wrap.scrollTop + m.y - wrapRect.top) / oldScale;
     bedScale=Math.min(3,Math.max(0.2,startScale*dist(e.touches)/startDist));
     applyScale();
+    wrap.scrollLeft = contentX*bedScale - (m.x - wrapRect.left);
+    wrap.scrollTop = contentY*bedScale - (m.y - wrapRect.top);
   },{passive:false});
 })();
 

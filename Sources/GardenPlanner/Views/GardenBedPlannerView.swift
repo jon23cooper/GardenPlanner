@@ -251,6 +251,7 @@ struct ZoomableScrollView<Content: View>: NSViewRepresentable {
         guard let hosting = context.coordinator.hostingView else { return }
         hosting.rootView = content()
         hosting.frame.size = hosting.fittingSize
+        context.coordinator.applyPendingAnchor()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -263,6 +264,7 @@ struct ZoomableScrollView<Content: View>: NSViewRepresentable {
         let maxZoom: CGFloat
         weak var hostingView: NSHostingView<Content>?
         weak var scrollView: NSScrollView?
+        private var pendingAnchor: (unscaledPoint: NSPoint, locationInView: NSPoint, newScale: CGFloat)?
 
         init(zoomScale: Binding<CGFloat>, minZoom: CGFloat, maxZoom: CGFloat) {
             _zoomScale = zoomScale
@@ -281,14 +283,18 @@ struct ZoomableScrollView<Content: View>: NSViewRepresentable {
             let pointBefore = NSPoint(x: originBefore.x + locationInView.x, y: originBefore.y + locationInView.y)
             let unscaledPoint = NSPoint(x: pointBefore.x / oldScale, y: pointBefore.y / oldScale)
 
+            pendingAnchor = (unscaledPoint, locationInView, newScale)
             zoomScale = newScale
+        }
 
-            DispatchQueue.main.async {
-                let pointAfter = NSPoint(x: unscaledPoint.x * newScale, y: unscaledPoint.y * newScale)
-                let newOrigin = NSPoint(x: pointAfter.x - locationInView.x, y: pointAfter.y - locationInView.y)
-                clipView.scroll(to: newOrigin)
-                scrollView.reflectScrolledClipView(clipView)
-            }
+        @MainActor func applyPendingAnchor() {
+            guard let anchor = pendingAnchor, let scrollView = scrollView else { return }
+            pendingAnchor = nil
+            let clipView = scrollView.contentView
+            let pointAfter = NSPoint(x: anchor.unscaledPoint.x * anchor.newScale, y: anchor.unscaledPoint.y * anchor.newScale)
+            let newOrigin = NSPoint(x: pointAfter.x - anchor.locationInView.x, y: pointAfter.y - anchor.locationInView.y)
+            clipView.scroll(to: newOrigin)
+            scrollView.reflectScrolledClipView(clipView)
         }
     }
 }
