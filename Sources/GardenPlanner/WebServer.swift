@@ -283,7 +283,7 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
 .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:14px 0 8px}
 #p-beds{padding:14px}
 .empty{text-align:center;padding:40px 20px;color:var(--text2);font-size:15px}
-.cell{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;position:relative;overflow:visible}
+.cell{width:52px;height:52px;border:1.5px solid #9E9E9E;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;text-align:center;padding:3px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;position:relative;overflow:visible}
 .cell.planted{border-width:2px}
 .cell:active{opacity:.7}
 .cell-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}
