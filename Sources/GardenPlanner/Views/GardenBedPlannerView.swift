@@ -101,14 +101,17 @@ struct BedGridView: View {
     let bed: GardenBed
     let year: Int
 
-    let cellSize: CGFloat = 48
+    let baseCellSize: CGFloat = 48
+    @State private var zoomScale: CGFloat = 1.0
+
+    var cellSize: CGFloat { baseCellSize * zoomScale }
 
     var body: some View {
         ScrollView([.horizontal, .vertical]) {
             VStack(alignment: .leading, spacing: 0) {
                 // Column header
                 HStack(spacing: 1) {
-                    Spacer().frame(width: 28)
+                    Spacer().frame(width: 28 * zoomScale)
                     ForEach(0..<bed.columns, id: \.self) { col in
                         Text("\(col + 1)")
                             .font(.caption2)
@@ -124,7 +127,7 @@ struct BedGridView: View {
                         Text("\(row + 1)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .frame(width: 24)
+                            .frame(width: 24 * zoomScale)
                         ForEach(0..<bed.columns, id: \.self) { col in
                             let pos = GridPosition(row: row, column: col)
                             let cell = bed.cell(at: pos, year: year)
@@ -161,7 +164,26 @@ struct BedGridView: View {
             }
             .padding()
         }
+        .simultaneousGesture(
+            MagnificationGesture()
+                .onChanged { value in
+                    zoomScale = min(2.5, max(0.4, zoomScale * value))
+                }
+        )
         .navigationTitle(bed.name)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button { zoomScale = max(0.4, zoomScale - 0.1) } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .help("Zoom out")
+                Button("Reset") { zoomScale = 1.0 }
+                Button { zoomScale = min(2.5, zoomScale + 0.1) } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .help("Zoom in")
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 16) {
                 Label("Right-click a cell to plant a seed", systemImage: "computermouse")
@@ -169,6 +191,8 @@ struct BedGridView: View {
                 Label("Or drag from the seed list on the left", systemImage: "arrow.left")
                 Text("·")
                 Label("Double-click to clear", systemImage: "xmark")
+                Text("·")
+                Label("Pinch or use toolbar to zoom", systemImage: "magnifyingglass")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
