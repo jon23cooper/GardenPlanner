@@ -287,6 +287,7 @@ select:focus,input:focus{outline:none;border-color:var(--green)}
 .cell.planted{border-width:2px}
 .cell:active{opacity:.7}
 .cell-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cell-coord{position:absolute;top:1px;left:2px;font-size:7px;color:#9E9E9E;z-index:3;line-height:1;pointer-events:none}
 .spread-circle{position:absolute;top:50%;left:50%;border-radius:50%;transform:translate(-50%,-50%);z-index:1;pointer-events:none}
 .grid-row{display:flex;gap:3px;margin-bottom:3px;position:relative}
 .toast{position:fixed;bottom:calc(var(--tabs) + 14px);left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;z-index:100;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
@@ -554,6 +555,7 @@ function renderBedGrid() {
           circle = `<div class="spread-circle" style="width:${diameter}px;height:${diameter}px;background:${bg}1F;border:1px solid ${bg}59"></div>`;
         }
         html+=`<div class="cell planted" style="background:${bg}22;border-color:${bg}" onclick="tapPlanted('${bedData._bedId}',${r},${c},${bedData._year},'${esc(cell.seedName||'')}')">
+          <span class="cell-coord">${c+1},${r+1}</span>
           ${circle}
           <div class="cell-content">
             <span class="chip" style="background:${bg};width:8px;height:8px;border-radius:50%;display:block;margin-bottom:2px"></span>
@@ -562,6 +564,7 @@ function renderBedGrid() {
         </div>`;
       } else {
         html+=`<div class="cell" style="background:#f8f8f8" onclick="tapEmpty('${bedData._bedId}',${r},${c},${bedData._year})">
+          <span class="cell-coord">${c+1},${r+1}</span>
           <span style="color:#ccc;font-size:18px">+</span>
         </div>`;
       }
