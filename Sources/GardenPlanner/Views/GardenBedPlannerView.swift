@@ -344,7 +344,7 @@ struct BedCellView: View {
                     Circle()
                         .fill(Color(hex: seed.colorHex))
                         .frame(width: 14, height: 14)
-                    Text(seed.name)
+                    Text(seed.displayName)
                         .font(.system(size: 8))
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
