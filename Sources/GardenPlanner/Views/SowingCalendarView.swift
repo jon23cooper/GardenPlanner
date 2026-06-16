@@ -45,6 +45,32 @@ struct SowingCalendarView: View {
         return max(10, (availableWidth - fixed) / 48)
     }
 
+    func plantingRecords(for seedId: UUID) -> [PlantingRecord] {
+        appData.plantingRecords(for: seedId).filter { $0.year == year }
+    }
+
+    /// X offset of a date within the months row (the area covered by the ForEach(1...12) week cells),
+    /// measured from the leading edge of that row.
+    func dateXOffset(_ date: Date, weekW: CGFloat) -> CGFloat {
+        let cal = Calendar.current
+        let month = max(1, min(12, cal.component(.month, from: date)))
+        let day = cal.component(.day, from: date)
+        let week = max(1, min(4, ((day - 1) / 7) + 1))
+        let wStart = weekStartDate(month: month, week: week)
+        let wEnd = weekEndDate(month: month, week: week)
+        let total = wEnd.timeIntervalSince(wStart)
+        let elapsed = date.timeIntervalSince(wStart)
+        let fraction = total > 0 ? min(1, max(0, elapsed / total)) : 0
+
+        var x: CGFloat = 0
+        if month > 1 {
+            x += CGFloat(month - 1) * (weekW * 4 + innerGap * 3 + monthGap)
+        }
+        x += CGFloat(week - 1) * (weekW + innerGap)
+        x += fraction * weekW
+        return x
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -119,7 +145,7 @@ struct SowingCalendarView: View {
                 }
 
                 Divider()
-                Text("Drag the column edge to resize the plant name column")
+                Text("Drag the column edge to resize the plant name column · dots show actual sowing dates from the Planting Log")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, gridPadding)
@@ -191,21 +217,40 @@ struct SowingCalendarView: View {
                         }
                         .frame(width: labelW, alignment: .leading)
 
-                        ForEach(1...12, id: \.self) { m in
-                            HStack(spacing: innerGap) {
-                                ForEach(1...4, id: \.self) { w in
-                                    RangeWeekCell(
-                                        weekStart: weekStartDate(month: m, week: w),
-                                        weekEnd: weekEndDate(month: m, week: w),
-                                        windowStart: rw.start,
-                                        windowEnd: rw.end,
-                                        colorHex: rw.window.colorHex,
-                                        width: weekW,
-                                        height: rowH
-                                    )
+                        ZStack(alignment: .topLeading) {
+                            HStack(spacing: 0) {
+                                ForEach(1...12, id: \.self) { m in
+                                    HStack(spacing: innerGap) {
+                                        ForEach(1...4, id: \.self) { w in
+                                            RangeWeekCell(
+                                                weekStart: weekStartDate(month: m, week: w),
+                                                weekEnd: weekEndDate(month: m, week: w),
+                                                windowStart: rw.start,
+                                                windowEnd: rw.end,
+                                                colorHex: rw.window.colorHex,
+                                                width: weekW,
+                                                height: rowH
+                                            )
+                                        }
+                                    }
+                                    if m < 12 { Spacer().frame(width: monthGap) }
                                 }
                             }
-                            if m < 12 { Spacer().frame(width: monthGap) }
+
+                            // Overlay actual sowing dates from the Planting Log
+                            if i == 0 {
+                                ForEach(plantingRecords(for: rs.seed.id)) { record in
+                                    Circle()
+                                        .fill(Color(hex: rs.seed.colorHex))
+                                        .overlay(Circle().strokeBorder(.white, lineWidth: 1))
+                                        .frame(width: 9, height: 9)
+                                        .offset(
+                                            x: dateXOffset(record.dateSown, weekW: weekW) - 4.5,
+                                            y: (rowH - 9) / 2
+                                        )
+                                        .help("Sown \(record.dateSown.formatted(date: .abbreviated, time: .omitted)) · \(record.quantitySown) sown")
+                                }
+                            }
                         }
                     }
                     .padding(.vertical, 2)

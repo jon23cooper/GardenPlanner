@@ -6,6 +6,7 @@ struct PlantingLogView: View {
     @State private var showingAddSheet = false
     @State private var filterYear: Int = Calendar.current.component(.year, from: Date())
     @State private var nameColumnWidth: CGFloat = 160
+    @State private var searchText: String = ""
 
     var years: [Int] {
         let recordYears = Set(appData.plantingRecords.map { $0.year })
@@ -29,6 +30,9 @@ struct PlantingLogView: View {
             guard let seed = appData.seed(id: seedId) else { return nil }
             return SeedTimeline(seed: seed, records: records.sorted { $0.dateSown < $1.dateSown })
         }
+        .filter { st in
+            searchText.isEmpty || st.seed.displayName.localizedCaseInsensitiveContains(searchText)
+        }
         .sorted { $0.seed.displayName < $1.seed.displayName }
     }
 
@@ -46,6 +50,9 @@ struct PlantingLogView: View {
 
             if filteredRecords.isEmpty {
                 ContentUnavailableView("No Records", systemImage: "list.clipboard", description: Text("No planting records for \(String(filterYear))."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else if seedTimelines.isEmpty {
+                ContentUnavailableView.search(text: searchText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 GeometryReader { geo in
@@ -69,6 +76,7 @@ struct PlantingLogView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Planting Log")
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Filter by seed name")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { showingAddSheet = true } label: {
