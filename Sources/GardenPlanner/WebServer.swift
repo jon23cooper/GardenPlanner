@@ -463,8 +463,17 @@ document.getElementById('btn-log').addEventListener('click', async () => {
   try {
     const r = await fetch('/api/plant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const res = await r.json();
-    if (res.ok) { toast('Planting logged ✓'); document.getElementById('s-qty').value=1; await load(); }
-    else toast('Error: '+(res.error||'unknown'));
+    if (res.ok) {
+      toast('Planting logged ✓');
+      document.getElementById('s-qty').value=1;
+      await load();
+      if (locVal.startsWith('bed:')) {
+        const bedId = locVal.slice(4);
+        showTab('beds');
+        document.getElementById('bed-sel').value = bedId;
+        await loadBed();
+      }
+    } else toast('Error: '+(res.error||'unknown'));
   } catch { toast('Failed to save'); }
   btn.disabled=false;
 });
@@ -484,6 +493,11 @@ function show(name, btn) {
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
   document.getElementById('p-'+name).classList.add('on');
   btn.classList.add('on');
+}
+
+function showTab(name) {
+  const btn = [...document.querySelectorAll('.tab')].find(b=>(b.getAttribute('onclick')||'').includes("'"+name+"'"));
+  if (btn) show(name, btn);
 }
 
 let _tt;

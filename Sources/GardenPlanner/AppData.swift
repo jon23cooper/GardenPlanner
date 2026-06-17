@@ -9,6 +9,9 @@ final class AppData {
     var gardenBeds: [GardenBed] = [] { didSet { save() } }
     var customLocations: [String] = ["Indoors", "Outdoors", "Greenhouse"] { didSet { save() } }
 
+    // Transient navigation signal: set to a bed UUID to navigate to that bed, cleared by GardenBedPlannerView
+    var pendingBedNavigation: UUID? = nil
+
     var webServerEnabled: Bool = true { didSet { save(); webServerEnabled ? startWebServer() : stopWebServer() } }
     var webServerPort: Int = 8080 { didSet { save(); if webServerEnabled { restartWebServer() } } }
     var webServerRunning: Bool = false { didSet { updateSleepAssertion() } }

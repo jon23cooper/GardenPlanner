@@ -119,6 +119,9 @@ struct PlantingLogView: View {
                 appData.addPlantingRecord(newRecord)
                 filterYear = newRecord.year
                 selectedRecord = newRecord
+                if case .bed(let bedId) = newRecord.location {
+                    appData.pendingBedNavigation = bedId
+                }
             }
         }
     }

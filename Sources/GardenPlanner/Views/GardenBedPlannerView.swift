@@ -72,6 +72,12 @@ struct GardenBedPlannerView: View {
                 selectedBedId = newBed.id
             }
         }
+        .onChange(of: appData.pendingBedNavigation) { _, id in
+            if let id {
+                selectedBedId = id
+                appData.pendingBedNavigation = nil
+            }
+        }
     }
 }
 

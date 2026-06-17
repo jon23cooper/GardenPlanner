@@ -45,5 +45,8 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .onChange(of: appData.pendingBedNavigation) { _, id in
+            if id != nil { selection = .beds }
+        }
     }
 }
