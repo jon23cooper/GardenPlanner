@@ -11,6 +11,21 @@ The app has four sections, listed in the sidebar on the left:
 
 ---
 
+## Installation
+
+GardenPlanner is installed as a standard macOS app in `/Applications`. Once installed you can launch it from Spotlight (⌘Space → "Garden Planner"), Finder → Applications, or keep it in the Dock (right-click its Dock icon → Options → Keep in Dock).
+
+If you need to reinstall or update after a code change, run the build script from the project folder:
+
+```bash
+cd ~/Documents/GardenPlanner
+./build-and-install.sh
+```
+
+This builds a release binary, assembles the app bundle, signs it, and copies it to `/Applications` in one step.
+
+---
+
 ## Seed Catalogue
 
 This is your master list of seeds. Each seed entry can hold:
@@ -54,6 +69,7 @@ Shows one row per seed that has plantings recorded for the selected year, with a
 - **Click a marker** to open that planting's full details in the panel on the right — sowing date, location, quantity, transplant/harvest dates, outcome, and notes. You can edit any of these fields directly
 - **Right-click a marker** for a quick "Delete" option, or use the **Delete Record** button in the detail panel
 - **Log Planting** button (top right) adds a new entry — pick the seed, date sown, location, and quantity. Locations can be one of your Garden Beds, or a custom location (e.g. "Greenhouse", "Cold frame") which you can add on the fly with the **+** button next to the location picker
+- After logging a planting to a garden bed, the app automatically switches to Garden Beds and shows that bed
 
 Logging a planting automatically deducts the quantity from that seed's stock count in the Seed Catalogue.
 
@@ -76,7 +92,7 @@ A map view of each garden bed as a grid of squares, sized according to the bed's
 
 ## Settings
 
-Open via the app menu (GardenPlanner → Settings, or ⌘,).
+Open via the app menu (Garden Planner → Settings, or ⌘,).
 
 - **Frost Dates** — your last spring frost and first autumn frost dates. These are used to resolve any "frost-relative" sowing windows (e.g. "2 weeks after last frost") in the Seed Catalogue
 - **Mobile Web Access** — turns the built-in web server on/off, lets you set the port, shows whether it's running, and lists the URLs to use from your phone (see below)
@@ -98,7 +114,7 @@ Sowing and transplanting happens outdoors, away from your computer — GardenPla
 ### Using it
 
 The mobile page has four tabs:
-- **Log** — log a new planting (seed, date, location, quantity)
+- **Log** — log a new planting (seed, date, location, quantity). After logging to a garden bed, the Beds tab opens automatically showing that bed
 - **Transplant** — mark an existing planting as transplanted
 - **Seeds** — browse your seed catalogue and stock levels
 - **Beds** — tap a bed to see its grid; tap an empty square to plant a seed, tap a planted square to clear it. Pinch or use the +/− buttons to zoom in on a bed; each cell shows its distance in cm from the bed's corner, same as on the desktop
