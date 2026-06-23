@@ -8,6 +8,9 @@ let package = Package(
         .executableTarget(
             name: "GardenPlanner",
             path: "Sources/GardenPlanner",
+            resources: [
+                .process("Resources")
+            ],
             linkerSettings: [
                 .unsafeFlags([
                     "-Xlinker", "-sectcreate",
